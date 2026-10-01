@@ -63,10 +63,6 @@ vulkan-mesa-layers
 lib32-vulkan-mesa-layers
 intel-media-driver
 libva-intel-driver
-libva-mesa-driver
-lib32-libva-mesa-driver
-mesa-vdpau
-lib32-mesa-vdpau
 libva-utils
 vdpauinfo
 v4l2loopback-dkms
@@ -149,9 +145,6 @@ gst-plugins-good
 gst-plugins-bad
 gst-plugins-ugly
 gst-libav
-lib32-gstreamer
-lib32-gst-plugins-base
-lib32-gst-plugins-good
 pavucontrol
 
 # ------------------------------------------------------------------------------
@@ -169,7 +162,6 @@ iptables-nft
 tor
 torsocks
 obfs4proxy
-snowflake
 usbguard
 mat2
 wireguard-tools
@@ -200,7 +192,7 @@ zenity
 nmap
 aircrack-ng
 wireshark-qt
-tshark
+wireshark-cli
 metasploit
 burpsuite
 hashcat
@@ -273,7 +265,7 @@ ttf-dejavu
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
-adw-gtk3
+adw-gtk-theme
 kvantum
 qt5-wayland
 qt6-wayland

@@ -91,7 +91,6 @@ lib32-gnutls
 libgcrypt
 libsodium
 libb2
-libudev0-shim
 libusb
 libevdev
 libinput
@@ -217,7 +216,7 @@ bettercap
 ghidra
 radare2
 proxychains-ng
-gnu-netcat
+openbsd-netcat
 
 # ------------------------------------------------------------------------------
 # 12. Developer, Reversing & Container Toolchains
@@ -274,7 +273,7 @@ ttf-dejavu
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
-adw-gtk-theme
+adw-gtk3
 kvantum
 qt5-wayland
 qt6-wayland

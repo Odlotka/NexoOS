@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # NexoOS archiso profile definition
-# Defines build metadata, filesystem types, boot labels, and permissions
 
 iso_name="NexoOS"
 iso_label="NEXOOS_$(date +%Y%m)"
@@ -12,17 +11,13 @@ buildmodes=('iso')
 bootmodes=(
     'bios.syslinux.mbr'
     'bios.syslinux.eltorito'
-    'uefi-ia32.systemd-boot.esp'
-    'uefi-x86_64.systemd-boot.esp'
-    'uefi-ia32.systemd-boot.eltorito'
-    'uefi-x86_64.systemd-boot.eltorito'
+    'uefi-x86_64.grub.esp'
+    'uefi-x86_64.grub.eltorito'
 )
 
-# Compression parameters for maximum squashfs performance and space efficiency
 airootfs_image_type="squashfs"
 airootfs_image_tool_options=('-comp' 'zstd' '-Xcompression-level' '19' '-b' '1M')
 
-# File permissions specification for airootfs overlay
 file_permissions=(
     ["/etc/shadow"]="0:0:0400"
     ["/etc/gshadow"]="0:0:0400"

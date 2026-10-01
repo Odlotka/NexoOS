@@ -9,12 +9,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Build NexoOS ISO inside Arch Linux Container
         run: |
           docker run --privileged --rm -v "${{ github.workspace }}:/build" -w /build archlinux:latest bash -c "
+            sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel = Never/' /etc/pacman.conf || true
+            pacman -Sy --noconfirm archlinux-keyring
             pacman -Syu --noconfirm archiso git
             mkarchiso -v -w /tmp/work -o /build/out /build
           "

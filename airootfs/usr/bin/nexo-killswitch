@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Stateful Network Killswitch (nexo-killswitch)
+# Enforces strict egress drop dropping all traffic not routed via Tor/VPN
+# ==============================================================================
+
+set -euo pipefail
+
+function check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        exec sudo "$0" "$@"
+    fi
+}
+
+ACTION="${1:-status}"
+
+case "${ACTION}" in
+    on)
+        check_root
+        echo "[!] Engaging NexoOS Network Killswitch..."
+
+        # Apply strict nftables egress lock
+        nft -f - << "EOF"
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+        iif "lo" accept
+        ct state established,related accept
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority filter; policy drop;
+
+        # Allow local loopback
+        oif "lo" accept
+
+        # Allow established connections
+        ct state established,related accept
+
+        # Allow Tor user (UID 43 on Arch / 'tor') egress to Tor entry guards
+        skuid 43 accept
+
+        # Allow Wireguard / Tun interfaces
+        oif "wg0" accept
+        oif "tun0" accept
+
+        # Allow local network gateway resolution (DHCP/DNS on lo)
+        udp dport 53 ip daddr 127.0.0.1 accept
+        udp dport 67-68 accept
+    }
+}
+EOF
+        touch /tmp/nexo-killswitch-active
+        echo "[✓] Killswitch engaged. All non-Tor/VPN egress traffic blocked."
+        ;;
+
+    off)
+        check_root
+        echo "[*] Restoring standard nftables policy..."
+        nft -f /etc/nftables.conf
+        rm -f /tmp/nexo-killswitch-active
+        echo "[✓] Killswitch disengaged. Standard networking restored."
+        ;;
+
+    status)
+        if [[ -f /tmp/nexo-killswitch-active ]]; then
+            echo "KILLSWITCH_STATE=ENGAGED"
+        else
+            echo "KILLSWITCH_STATE=DISENGAGED"
+        fi
+        ;;
+esac

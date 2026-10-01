@@ -1,0 +1,75 @@
+# ==============================================================================
+# NexoOS HiDPI GRUB Dark Theme Configuration
+# Sleek dark canvas, glowing cyan/purple accents, and centered typography
+# ==============================================================================
+
+# Global properties
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#0a0c10"
+terminal-font: "Unifont Regular 16"
+terminal-box: "terminal_box_*.png"
+terminal-left: "0"
+terminal-top: "0"
+terminal-width: "100%"
+terminal-height: "100%"
+terminal-border: "0"
+
+# Header Branding Emblem
++ image {
+    top = 12%
+    left = 50%-150
+    file = "logo.png"
+}
+
+# Subtitle / OS Identification
++ label {
+    top = 24%
+    left = 50%-200
+    width = 400
+    align = "center"
+    text = "NexoOS // Low-Latency Cyber & Gaming Architecture"
+    color = "#00f0ff"
+    font = "Unifont Regular 14"
+}
+
+# Boot Menu List
++ boot_menu {
+    left = 50%-320
+    top = 34%
+    width = 640
+    height = 45%
+    item_font = "Unifont Regular 16"
+    item_color = "#94a3b8"
+    selected_item_color = "#ffffff"
+    item_height = 42
+    item_padding = 8
+    item_spacing = 10
+    selected_item_pixmap_style = "select_*.png"
+    icon_width = 24
+    icon_height = 24
+    item_icon_space = 16
+}
+
+# Countdown / Progress Bar
++ progress_bar {
+    id = "__timeout__"
+    left = 50%-250
+    top = 84%
+    width = 500
+    height = 6
+    show_text = false
+    bar_style = "progress_bar_*.png"
+    highlight_style = "progress_bar_hl_*.png"
+}
+
+# Bottom Navigation Help Text
++ label {
+    top = 88%
+    left = 50%-300
+    width = 600
+    align = "center"
+    text = "Use [↑] and [↓] keys to select, [Enter] to boot, [e] to edit options"
+    color = "#64748b"
+    font = "Unifont Regular 13"
+}

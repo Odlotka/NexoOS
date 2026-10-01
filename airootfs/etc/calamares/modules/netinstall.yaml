@@ -1,0 +1,76 @@
+# ==============================================================================
+# /etc/calamares/modules/netinstall.yaml - Modular Software Selection Tiers
+# ==============================================================================
+
+- name: "NexoOS Core, Gaming & Windows Compatibility"
+  description: "High-performance Zen kernel, Wine-Staging, DXVK, Gamescope, and GameMode runtimes."
+  selected: true
+  critical: true
+  packages:
+    - linux-zen
+    - linux-zen-headers
+    - wine-staging
+    - winetricks
+    - vkd3d
+    - gamescope
+    - gamemode
+    - ananicy-cpp
+    - mangohud
+    - mpvpaper
+    - swww
+
+- name: "Top 20 Offensive Auditing & Security Suite"
+  description: "Industry-standard penetration testing, vulnerability analysis, and network auditing tools."
+  selected: true
+  critical: false
+  packages:
+    - nmap
+    - aircrack-ng
+    - wireshark-qt
+    - tshark
+    - metasploit
+    - burpsuite
+    - hashcat
+    - john
+    - sqlmap
+    - gobuster
+    - ffuf
+    - hydra
+    - masscan
+    - tcpdump
+    - socat
+    - bettercap
+    - ghidra
+    - radare2
+    - proxychains-ng
+    - gnu-netcat
+
+- name: "Extended BlackArch Security Catalog"
+  description: "Access the entire 2,800+ tool penetration testing catalog from BlackArch Linux."
+  selected: false
+  critical: false
+  packages:
+    - blackarch-keyring
+    - blackarch-mirrorlist
+
+- name: "Strict Anonymity, Tor Routing & MAC Randomization"
+  description: "Transparent Tor routing proxy, snowflake/obfs4 pluggable transports, USBGuard, and MAT2."
+  selected: true
+  critical: false
+  packages:
+    - tor
+    - torsocks
+    - obfs4proxy
+    - snowflake
+    - usbguard
+    - mat2
+    - macchanger
+
+- name: "Studio Audio/Video Production Stack"
+  description: "OBS Studio with hardware acceleration NVENC/VA-API, Kdenlive, and low-latency PipeWire."
+  selected: false
+  critical: false
+  packages:
+    - obs-studio
+    - kdenlive
+    - audacity

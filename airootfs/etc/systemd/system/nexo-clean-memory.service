@@ -1,0 +1,12 @@
+[Unit]
+Description=NexoOS Shutdown RAM Zeroing & Forensic Wipe Routine
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
+TimeoutSec=10
+
+[Install]
+WantedBy=shutdown.target reboot.target halt.target

@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""
+NexoOS Desktop Clock Widget
+Renders the minimalist futuristic desktop clock matching Screenshots 1, 3 & 4
+"""
+
+import sys
+import os
+import json
+import time
+from datetime import datetime
+
+CONFIG_PATH = os.path.expanduser("~/.config/nexo/desktop-clock.json")
+
+def load_config():
+    default_cfg = {
+        "position": "Center",
+        "horizontal_margin": 162,
+        "vertical_margin": 126,
+        "format_24h": True,
+        "date_format": "%d %b %Y",
+        "tracking": True
+    }
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                default_cfg.update(json.load(f))
+        except Exception:
+            pass
+    return default_cfg
+
+# Try importing GTK or fallback to conky / hyprland widget
+try:
+    import gi
+    gi.require_version('Gtk', '4.0')
+    gi.require_version('Gtk4LayerShell', '1.0')
+    from gi.repository import Gtk, GLib, Gtk4LayerShell
+
+    class DesktopClockWindow(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app)
+            self.cfg = load_config()
+
+            # Init Layer Shell
+            Gtk4LayerShell.init_for_window(self)
+            Gtk4LayerShell.set_layer(self, Gtk4LayerShell.Layer.BOTTOM)
+            Gtk4LayerShell.set_keyboard_mode(self, Gtk4LayerShell.KeyboardMode.NONE)
+
+            # Positions
+            pos = self.cfg.get("position", "Center")
+            h_margin = self.cfg.get("horizontal_margin", 162)
+            v_margin = self.cfg.get("vertical_margin", 126)
+
+            if "Top" in pos:
+                Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.TOP, True)
+                Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.TOP, v_margin)
+            if "Bottom" in pos:
+                Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.BOTTOM, True)
+                Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.BOTTOM, v_margin)
+            if "Left" in pos:
+                Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.LEFT, True)
+                Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.LEFT, h_margin)
+            if "Right" in pos:
+                Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.RIGHT, True)
+                Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.RIGHT, h_margin)
+
+            # Box Layout
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_margin_top(16)
+            box.set_margin_bottom(16)
+            box.set_margin_start(24)
+            box.set_margin_end(24)
+
+            # 1. Day of Week (e.g. W E D N E S D A Y)
+            self.lbl_day = Gtk.Label()
+            self.lbl_day.set_css_classes(["clock-day"])
+
+            # 2. Date (e.g. 26 AUG 2026)
+            self.lbl_date = Gtk.Label()
+            self.lbl_date.set_css_classes(["clock-date"])
+
+            # 3. Time (e.g. - 15:40 -)
+            self.lbl_time = Gtk.Label()
+            self.lbl_time.set_css_classes(["clock-time"])
+
+            box.append(self.lbl_day)
+            box.append(self.lbl_date)
+            box.append(self.lbl_time)
+            self.set_child(box)
+
+            # CSS Provider
+            css = Gtk.CssProvider()
+            css.load_from_data(b"""
+                window { background: transparent; }
+                .clock-day {
+                    font-family: 'JetBrainsMono Nerd Font', 'Inter', sans-serif;
+                    font-size: 42px;
+                    font-weight: 800;
+                    letter-spacing: 12px;
+                    color: rgba(226, 232, 240, 0.88);
+                }
+                .clock-date {
+                    font-family: 'JetBrainsMono Nerd Font', sans-serif;
+                    font-size: 16px;
+                    font-weight: 500;
+                    letter-spacing: 4px;
+                    color: rgba(148, 163, 184, 0.75);
+                }
+                .clock-time {
+                    font-family: 'JetBrainsMono Nerd Font', sans-serif;
+                    font-size: 15px;
+                    font-weight: 400;
+                    letter-spacing: 3px;
+                    color: rgba(148, 163, 184, 0.65);
+                }
+            """)
+            Gtk.StyleContext.add_provider_for_display(
+                self.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            self.update_clock()
+            GLib.timeout_add_seconds(1, self.update_clock)
+
+        def update_clock(self):
+            now = datetime.now()
+            # Wide tracked weekday
+            raw_day = now.strftime("%A").upper()
+            day_spaced = " ".join(list(raw_day))
+            self.lbl_day.set_text(day_spaced)
+
+            # Date
+            self.lbl_date.set_text(now.strftime("%d %b %Y").upper())
+
+            # Time
+            t_fmt = "%H:%M" if self.cfg.get("format_24h", True) else "%I:%M %p"
+            self.lbl_time.set_text(f"- {now.strftime(t_fmt)} -")
+            return True
+
+    app = Gtk.Application(application_id="org.nexoos.desktopclock")
+    def on_activate(app):
+        win = DesktopClockWindow(app)
+        win.present()
+    app.connect('activate', on_activate)
+    app.run(sys.argv)
+
+except Exception as e:
+    # Standalone terminal/fallback message
+    print(f"Desktop Clock Helper (Fallback Mode): {e}")

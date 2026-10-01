@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NexoOS Tweaks
+Comment=Customization Center for Fonts, Live Wallpapers, Cursors and Blur
+Exec=/usr/bin/nexo-tweaks
+Icon=preferences-desktop-theme
+Terminal=false
+Type=Application
+Categories=Settings;DesktopSettings;

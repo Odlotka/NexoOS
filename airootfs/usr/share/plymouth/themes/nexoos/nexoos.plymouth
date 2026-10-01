@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=NexoOS Flicker-Free KMS Splash
+Description=High-resolution animated cyber emblem and progress indicator
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/nexoos
+ScriptFile=/usr/share/plymouth/themes/nexoos/nexoos.script

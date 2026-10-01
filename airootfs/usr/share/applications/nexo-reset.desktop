@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NexoOS Factory Reset
+Comment=Btrfs System Rollback and Clean Profile Restoration Wizard
+Exec=/usr/bin/nexo-reset
+Icon=system-reboot
+Terminal=false
+Type=Application
+Categories=System;Recovery;

@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Comprehensive Control & Customization Center (nexo-tweaks)
+# Full system personalization: Wallpapers, Dock, Blur, Fonts, Gaming Boost & Lockscreen
+# ==============================================================================
+
+set -euo pipefail
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Ustawień i Personalizacji" \
+        --text="Wybierz kategorię konfiguracji systemu:" \
+        --column="Wybierz" --column="Kategoria" --column="Opis modułu" \
+        TRUE "Tapety" "Statyczne, wideo 60 FPS, Steam Wallpaper Engine, fale 3D" \
+        FALSE "Styl i Paski" "Górny pasek pigułkowy (Tri-Pill) + Dolny Dok (macOS style)" \
+        FALSE "Wydajność i Gaming" "Ultra Boost, Direct Scanout, planista BORE i CPU Governor" \
+        FALSE "Ekran Blokady" "Dostosowanie ekranu podglądu (Glance), zegara i awatara" \
+        FALSE "Rozmycie i Wygląd" "Siła rozmycia Dual-Kawase Blur, zaokrąglenia i motyw okien" \
+        FALSE "Czcionki" "Globalna zmiana typografii systemu (GTK, Qt, terminal)" \
+        FALSE "Kursor" "Rozmiar i styl wskaźnika myszy (HiDPI 24px - 48px)" \
+        FALSE "Wine & Gry" "Zarządzanie aplikacjami Windows, czyszczenie shaderów DXVK" \
+        --width=720 --height=380) || exit 0
+
+    case "${choice}" in
+        "Tapety")             configure_wallpapers ;;
+        "Styl i Paski")       configure_bars ;;
+        "Wydajność i Gaming") configure_performance ;;
+        "Ekran Blokady")      configure_lockscreen ;;
+        "Rozmycie i Wygląd")  configure_blur ;;
+        "Czcionki")           configure_fonts ;;
+        "Kursor")             configure_cursors ;;
+        "Wine & Gry")         configure_wine ;;
+    esac
+}
+
+function configure_wallpapers() {
+    local mode
+    mode=$(zenity --list --radiolist \
+        --title="Silnik Tapet Pulpitu" \
+        --text="Wybierz tryb tapety:" \
+        --column="Wybierz" --column="Opcja" \
+        TRUE "Domyślna elegancka tapeta (Szare fale 3D z ekranu NexoOS)" \
+        FALSE "Własna tapeta graficzna (.png, .jpg, .webp)" \
+        FALSE "Żywa tapeta wideo MP4/WebM (Sprzętowe dekodowanie 60 FPS)" \
+        FALSE "Żywa tapeta wideo (Tryb oszczędzania energii 30 FPS)" \
+        FALSE "Steam Wallpaper Engine (Wykrywanie warsztatu 431960)" \
+        --width=520 --height=280) || return 0
+
+    case "${mode}" in
+        "Domyślna"*)
+            swww img /usr/share/nexoos/branding/wallpaper.png --transition-type wipe --transition-duration 1.5
+            notify-send "NexoOS" "Zastosowano domyślną tapetę fal 3D."
+            ;;
+        "Własna"*)
+            local img
+            img=$(zenity --file-selection --title="Wybierz plik graficzny tapety" --file-filter="Obrazy | *.png *.jpg *.jpeg *.webp") || return 0
+            swww img "${img}" --transition-type wipe --transition-duration 1.5
+            notify-send "NexoOS" "Tapeta pulpitu zaktualizowana."
+            ;;
+        *"60 FPS"*)
+            local vid
+            vid=$(zenity --file-selection --title="Wybierz plik wideo dla tapety" --file-filter="Pliki wideo | *.mp4 *.webm *.mkv") || return 0
+            pkill -f mpvpaper || true
+            mpvpaper -o "no-audio loop --hwdec=auto" '*' "${vid}" &
+            notify-send "NexoOS" "Uruchomiono animowaną tapetę wideo (60 FPS, HWDEC)."
+            ;;
+        *"30 FPS"*)
+            local vid
+            vid=$(zenity --file-selection --title="Wybierz plik wideo dla tapety" --file-filter="Pliki wideo | *.mp4 *.webm *.mkv") || return 0
+            pkill -f mpvpaper || true
+            mpvpaper -o "no-audio loop --hwdec=auto --fps=30" '*' "${vid}" &
+            notify-send "NexoOS" "Uruchomiono tapetę wideo w trybie 30 FPS."
+            ;;
+        *"Steam"*)
+            if command -v linux-wallpaperengine >/dev/null 2>&1; then
+                linux-wallpaperengine --silent --assets-dir ~/.local/share/Steam/steamapps/workshop/content/431960/ &
+                notify-send "NexoOS" "Załadowano tapetę ze Steam Wallpaper Engine."
+            else
+                zenity --info --text="Ścieżka warsztatu Steam:\n~/.local/share/Steam/steamapps/workshop/content/431960/"
+            fi
+            ;;
+    esac
+}
+
+function configure_bars() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="Konfiguracja Pasków i Doku" \
+        --column="Wybierz" --column="Układ" \
+        TRUE "Styl NexoOS (Górne pigułki Tri-Pill + Dolny pływający Dok)" \
+        FALSE "Tylko górny pojedynczy pasek minimalistyczny" \
+        FALSE "Restart paska Waybar i doku" \
+        --width=480 --height=220) || return 0
+
+    pkill waybar || true
+    sleep 0.5
+
+    case "${choice}" in
+        "Styl NexoOS"*)
+            waybar -c ~/.config/waybar/config-top.jsonc -s ~/.config/waybar/style-top.css &
+            waybar -c ~/.config/waybar/config-dock.jsonc -s ~/.config/waybar/style-dock.css &
+            notify-send "NexoOS" "Zastosowano styl Tri-Pill oraz dolny Dok."
+            ;;
+        "Tylko górny"*)
+            waybar -c ~/.config/waybar/config-top.jsonc -s ~/.config/waybar/style-top.css &
+            notify-send "NexoOS" "Włączono pojedynczy górny pasek."
+            ;;
+        "Restart"*)
+            waybar -c ~/.config/waybar/config-top.jsonc -s ~/.config/waybar/style-top.css &
+            waybar -c ~/.config/waybar/config-dock.jsonc -s ~/.config/waybar/style-dock.css &
+            ;;
+    esac
+}
+
+function configure_performance() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Optymalizacja Wydajności i Gaming" \
+        --column="Wybierz" --column="Tryb" \
+        TRUE "Aktywuj tryb Ultra Gaming Boost (Wymuszenie Direct Scanout, max zegary CPU/GPU)" \
+        FALSE "Włącz nielimitowany Tearing dla gier (Zero input lag w grach e-sportowych)" \
+        FALSE "Wyłącz rozmycie szkła dla słabszych kart zintegrowanych (Oszczędność GPU)" \
+        FALSE "Przywróć standardowy profil zrównoważony" \
+        --width=560 --height=240) || return 0
+
+    case "${opt}" in
+        *"Ultra Gaming"*)
+            nexo-cli boost
+            notify-send "NexoOS Boost" "Włączono maksymalną wydajność i niskie opóźnienia!"
+            ;;
+        *"Tearing"*)
+            hyprctl keyword general:allow_tearing true
+            notify-send "NexoOS" "Odblokowano natychmiastowe renderowanie klatek (Tearing)."
+            ;;
+        *"Wyłącz rozmycie"*)
+            hyprctl keyword decoration:blur:enabled false
+            notify-send "NexoOS" "Wyłączono rozmycie kompozytora (Maksymalna oszczędność GPU)."
+            ;;
+        *"Przywróć"*)
+            hyprctl keyword decoration:blur:enabled true
+            hyprctl keyword decoration:blur:passes 3
+            notify-send "NexoOS" "Przywrócono standardowy profil graficzny."
+            ;;
+    esac
+}
+
+function configure_lockscreen() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Ustawienia Ekranu Blokady" \
+        --column="Wybierz" --column="Opcja" \
+        TRUE "Zmień tapetę ekranu blokady" \
+        FALSE "Zmień awatar użytkownika na ekranie logowania" \
+        FALSE "Przetestuj ekran blokady natychmiast" \
+        --width=450 --height=220) || return 0
+
+    case "${opt}" in
+        *"tapetę"*)
+            local img
+            img=$(zenity --file-selection --title="Wybierz grafikę dla ekranu blokady") || return 0
+            cp "${img}" ~/.config/hypr/lockscreen_custom.png
+            notify-send "NexoOS" "Zaktualizowano tapetę ekranu blokady."
+            ;;
+        *"awatar"*)
+            local av
+            av=$(zenity --file-selection --title="Wybierz grafikę awatara") || return 0
+            cp "${av}" ~/.config/hypr/avatar_custom.png
+            notify-send "NexoOS" "Zaktualizowano awatar użytkownika."
+            ;;
+        *"Przetestuj"*)
+            nexo-lock &
+            ;;
+    esac
+}
+
+function configure_blur() {
+    local blur
+    blur=$(zenity --scale --title="Regulacja Rozmycia Szkła (Dual-Kawase Blur)" \
+        --text="Ustaw intensywność rozmycia (1 = minimalne, 5 = mocne szkło akrylowe):" \
+        --min-value=1 --max-value=5 --value=3) || return 0
+
+    hyprctl keyword decoration:blur:passes "${blur}" 2>/dev/null || true
+    notify-send "NexoOS" "Zaktualizowano poziom rozmycia szkła na: ${blur}"
+}
+
+function configure_fonts() {
+    local font
+    font=$(zenity --entry --title="Globalna Typografia Systemu" \
+        --text="Podaj nazwę czcionki (np. JetBrainsMono Nerd Font, Noto Sans, Inter):" \
+        --entry-text="JetBrainsMono Nerd Font") || return 0
+
+    gsettings set org.gnome.desktop.interface font-name "${font} 11" || true
+    notify-send "NexoOS" "Zastosowano nową czcionkę: ${font}"
+}
+
+function configure_cursors() {
+    local size
+    size=$(zenity --scale --title="Rozmiar Kursora Myszy" \
+        --text="Wybierz rozmiar kursora (HiDPI 24px - 48px):" \
+        --min-value=24 --max-value=48 --value=28 --step=4) || return 0
+
+    gsettings set org.gnome.desktop.interface cursor-size "${size}" || true
+    hyprctl setcursor "Adwaita" "${size}" 2>/dev/null || true
+    notify-send "NexoOS" "Skalowanie kursora ustawione na: ${size}px"
+}
+
+function configure_wine() {
+    local act
+    act=$(zenity --list --radiolist \
+        --title="Zarządzanie Aplikacjami Windows (Wine & Gry)" \
+        --column="Wybierz" --column="Akcja" \
+        TRUE "Zabij zawieszone aplikacje Windows (wineserver -k)" \
+        FALSE "Wyczyść pamięć podręczną shaderów DXVK i Mesa" \
+        FALSE "Uruchom program w bezpiecznej piaskownicy (Bubblewrap)" \
+        --width=520 --height=220) || return 0
+
+    case "${act}" in
+        *"Zabij"*)
+            nexo-wine-manager kill
+            ;;
+        *"shaderów"*)
+            nexo-wine-manager clearcache
+            ;;
+        *"piaskownicy"*)
+            local exe
+            exe=$(zenity --file-selection --title="Wybierz plik .exe") || return 0
+            nexo-wine-manager sandbox "${exe}"
+            ;;
+    esac
+}
+
+# Run UI
+if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    show_menu
+else
+    echo "NexoOS Tweaks wymaga uruchomionego środowiska graficznego."
+fi

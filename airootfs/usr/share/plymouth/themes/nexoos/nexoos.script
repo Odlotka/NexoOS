@@ -1,0 +1,44 @@
+# ==============================================================================
+# NexoOS Plymouth Boot Splash Animation Script
+# ==============================================================================
+
+# Background dark color
+Window.SetBackgroundTopColor(0.04, 0.05, 0.07);
+Window.SetBackgroundBottomColor(0.02, 0.03, 0.05);
+
+# Screen Dimensions
+screen_width = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+# Load Logo Image
+logo.image = Image("logo.png");
+if (logo.image) {
+    logo.sprite = Sprite(logo.image);
+    logo.x = (screen_width - logo.image.GetWidth()) / 2;
+    logo.y = (screen_height - logo.image.GetHeight()) / 2 - 40;
+    logo.sprite.SetX(logo.x);
+    logo.sprite.SetY(logo.y);
+    logo.sprite.SetOpacity(1.0);
+}
+
+# Progress Spinner Animation
+progress = 0;
+fun refresh_callback() {
+    progress++;
+    # Pulsing opacity effect
+    opacity = 0.6 + 0.4 * Math.Sin(progress * 0.08);
+    if (logo.sprite) {
+        logo.sprite.SetOpacity(opacity);
+    }
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# Quit Handler (Cross-fade out to display manager)
+fun quit_callback() {
+    if (logo.sprite) {
+        logo.sprite.SetOpacity(0);
+    }
+}
+
+Plymouth.SetQuitFunction(quit_callback);

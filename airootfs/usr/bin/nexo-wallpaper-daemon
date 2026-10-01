@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Intelligent Wallpaper & Performance Daemon (nexo-wallpaper-daemon)
+# Freezes wallpaper renderers during Fullscreen, Maximized windows, or GameMode
+# ==============================================================================
+
+set -euo pipefail
+
+IS_PAUSED=0
+TARGET_PROCESSES=("mpvpaper" "linux-wallpaperengine" "swww-daemon")
+
+function pause_wallpapers() {
+    if [[ ${IS_PAUSED} -eq 0 ]]; then
+        for proc in "${TARGET_PROCESSES[@]}"; do
+            pkill -STOP -f "${proc}" 2>/dev/null || true
+        done
+        IS_PAUSED=1
+    fi
+}
+
+function resume_wallpapers() {
+    if [[ ${IS_PAUSED} -eq 1 ]]; then
+        for proc in "${TARGET_PROCESSES[@]}"; do
+            pkill -CONT -f "${proc}" 2>/dev/null || true
+        done
+        IS_PAUSED=0
+    fi
+}
+
+function check_window_state_hyprland() {
+    if command -v hyprctl >/dev/null 2>&1; then
+        local active_window
+        active_window=$(hyprctl activewindow -j 2>/dev/null || echo "{}")
+        
+        # Check fullscreen (1 or 2)
+        local is_fs
+        is_fs=$(echo "${active_window}" | jq -r '.fullscreen // false' 2>/dev/null || echo "false")
+        if [[ "${is_fs}" != "false" && "${is_fs}" != "0" ]]; then
+            return 0
+        fi
+
+        # Check maximized (floating == false and size equals monitor resolution)
+        local is_floating
+        is_floating=$(echo "${active_window}" | jq -r '.floating // true' 2>/dev/null || echo "true")
+        if [[ "${is_floating}" == "false" ]]; then
+            # Window covers the desktop background
+            return 0
+        fi
+    fi
+    return 1
+}
+
+function check_gamemode() {
+    if command -v gamemoded >/dev/null 2>&1; then
+        local gm_status
+        gm_status=$(gamemoded -s 2>/dev/null || echo "inactive")
+        if echo "${gm_status}" | grep -qi "active"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+while true; do
+    if check_window_state_hyprland || check_gamemode; then
+        pause_wallpapers
+    else
+        resume_wallpapers
+    fi
+    sleep 1.2
+done

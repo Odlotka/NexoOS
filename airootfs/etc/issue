@@ -1,0 +1,6 @@
+\e[1;36mNexoOS (x86_64) - Cyber Architecture & Gaming System\e[0m
+Kernel \r on an \m (\l)
+
+Default live session user: \e[1;32mnexo\e[0m (Passwordless sudo)
+Graphical installer command: \e[1;33msudo calamares\e[0m
+

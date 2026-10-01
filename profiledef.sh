@@ -21,12 +21,7 @@ airootfs_image_tool_options=('-comp' 'zstd' '-Xcompression-level' '19' '-b' '1M'
 
 # File permissions specification for airootfs overlay
 file_permissions=(
-    ["/etc/shadow"]="0:0:0400"
-    ["/etc/gshadow"]="0:0:0400"
-    ["/etc/sudoers.d"]="0:0:0750"
-    ["/etc/sudoers.d/10-installer"]="0:0:0440"
     ["/root"]="0:0:0700"
-    ["/root/.automated_script.sh"]="0:0:0755"
     ["/root/customize_airootfs.sh"]="0:0:0755"
     ["/usr/bin/nexo-cli"]="0:0:0755"
     ["/usr/bin/nexo-reset"]="0:0:0755"

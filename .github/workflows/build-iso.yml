@@ -22,10 +22,10 @@ jobs:
       - name: Build NexoOS ISO inside Arch Linux Container
         run: |
           docker run --privileged --rm -v "${{ github.workspace }}:/build" -w /build archlinux:latest bash -c "
-            rm -f /usr/share/libalpm/hooks/detect-old-perl-modules.hook
             sed -i 's/SigLevel    = Required DatabaseOptional/SigLevel = Never/' /etc/pacman.conf || true
             pacman -Sy --noconfirm archlinux-keyring
-            pacman -S --noconfirm archiso
+            pacman -S --noconfirm archiso dosfstools mtools grub libisoburn
+            cd /build
             mkarchiso -v -w /tmp/work -o /build/out /build
           "
 

@@ -1,0 +1,27 @@
+name: Build NexoOS ISO Image
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build NexoOS ISO inside Arch Linux Container
+        run: |
+          docker run --privileged --rm -v "${{ github.workspace }}:/build" -w /build archlinux:latest bash -c "
+            pacman -Syu --noconfirm archiso git
+            mkarchiso -v -w /tmp/work -o /build/out /build
+          "
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NexoOS-x86_64-ISO
+          path: out/*.iso
+          retention-days: 7

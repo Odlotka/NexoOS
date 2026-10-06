@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""
+NexoOS Desktop Clock Configuration Window (Screenshot 4 Match)
+Provides graphical preferences for Desktop Clock position, margins, and time formats
+"""
+
+import sys
+import os
+import json
+
+CONFIG_DIR = os.path.expanduser("~/.config/nexo")
+CONFIG_PATH = os.path.join(CONFIG_DIR, "desktop-clock.json")
+
+def load_config():
+    default_cfg = {
+        "position": "Left",
+        "horizontal_margin": 162,
+        "vertical_margin": 126,
+        "format_24h": True,
+        "date_format": "01 May"
+    }
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                default_cfg.update(json.load(f))
+        except Exception:
+            pass
+    return default_cfg
+
+def save_config(cfg):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=4)
+
+try:
+    import gi
+    gi.require_version('Gtk', '4.0')
+    from gi.repository import Gtk, Gio
+
+    class ClockSettingsWindow(Gtk.ApplicationWindow):
+        def __init__(self, app):
+            super().__init__(application=app)
+            self.set_title("Desktop Clock Preferences")
+            self.set_default_size(440, 520)
+            self.set_resizable(False)
+
+            self.cfg = load_config()
+
+            # HeaderBar with tabs
+            header = Gtk.HeaderBar()
+            header.set_show_title_buttons(True)
+            self.set_titlebar(header)
+
+            tab_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            btn_gen = Gtk.Button(label="󰒓 General")
+            btn_app = Gtk.Button(label="󰔎 Appearance")
+            btn_gen.set_css_classes(["suggested-action"])
+            tab_box.append(btn_gen)
+            tab_box.append(btn_app)
+            header.set_title_widget(tab_box)
+
+            # Main Container
+            main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+            main_box.set_margin_top(20)
+            main_box.set_margin_bottom(20)
+            main_box.set_margin_start(20)
+            main_box.set_margin_end(20)
+
+            # Group: Layout
+            lbl_layout = Gtk.Label(label="Layout")
+            lbl_layout.set_xalign(0)
+            lbl_layout.set_css_classes(["heading"])
+            main_box.append(lbl_layout)
+
+            card_layout = Gtk.ListBox()
+            card_layout.set_selection_mode(Gtk.SelectionMode.NONE)
+            card_layout.set_css_classes(["boxed-list"])
+
+            # 1. Position Dropdown
+            row_pos = Gtk.ListBoxRow()
+            box_pos = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box_pos.set_margin_top(12)
+            box_pos.set_margin_bottom(12)
+            box_pos.set_margin_start(16)
+            box_pos.set_margin_end(16)
+
+            v_pos = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            l_pos_title = Gtk.Label(label="Position")
+            l_pos_title.set_xalign(0)
+            l_pos_desc = Gtk.Label(label="Position of the clock on the desktop.")
+            l_pos_desc.set_xalign(0)
+            l_pos_desc.set_css_classes(["dim-label"])
+            v_pos.append(l_pos_title)
+            v_pos.append(l_pos_desc)
+
+            positions = ["Top left", "Top", "Top right", "Left", "Center", "Right", "Bottom left", "Bottom", "Bottom right"]
+            dd_pos = Gtk.DropDown.new_from_strings(positions)
+            if self.cfg.get("position") in positions:
+                dd_pos.set_selected(positions.index(self.cfg.get("position")))
+            else:
+                dd_pos.set_selected(3) # Left
+
+            box_pos.append(v_pos)
+            box_pos.append(Gtk.Label(hexpand=True))
+            box_pos.append(dd_pos)
+            row_pos.set_child(box_pos)
+            card_layout.append(row_pos)
+
+            # 2. Horizontal Margin
+            row_hm = Gtk.ListBoxRow()
+            box_hm = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box_hm.set_margin_top(12)
+            box_hm.set_margin_bottom(12)
+            box_hm.set_margin_start(16)
+            box_hm.set_margin_end(16)
+
+            v_hm = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            l_hm_title = Gtk.Label(label="Horizontal margin")
+            l_hm_title.set_xalign(0)
+            l_hm_desc = Gtk.Label(label="Margin used by edge positions.")
+            l_hm_desc.set_xalign(0)
+            l_hm_desc.set_css_classes(["dim-label"])
+            v_hm.append(l_hm_title)
+            v_hm.append(l_hm_desc)
+
+            spin_hm = Gtk.SpinButton.new_with_range(0, 1000, 10)
+            spin_hm.set_value(self.cfg.get("horizontal_margin", 162))
+
+            box_hm.append(v_hm)
+            box_hm.append(Gtk.Label(hexpand=True))
+            box_hm.append(spin_hm)
+            row_hm.set_child(box_hm)
+            card_layout.append(row_hm)
+
+            # 3. Vertical Margin
+            row_vm = Gtk.ListBoxRow()
+            box_vm = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box_vm.set_margin_top(12)
+            box_vm.set_margin_bottom(12)
+            box_vm.set_margin_start(16)
+            box_vm.set_margin_end(16)
+
+            v_vm = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            l_vm_title = Gtk.Label(label="Vertical margin")
+            l_vm_title.set_xalign(0)
+            l_vm_desc = Gtk.Label(label="Margin used by edge positions.")
+            l_vm_desc.set_xalign(0)
+            l_vm_desc.set_css_classes(["dim-label"])
+            v_vm.append(l_vm_title)
+            v_vm.append(l_vm_desc)
+
+            spin_vm = Gtk.SpinButton.new_with_range(0, 1000, 10)
+            spin_vm.set_value(self.cfg.get("vertical_margin", 126))
+
+            box_vm.append(v_vm)
+            box_vm.append(Gtk.Label(hexpand=True))
+            box_vm.append(spin_vm)
+            row_vm.set_child(box_vm)
+            card_layout.append(row_vm)
+
+            main_box.append(card_layout)
+
+            # Group: Time and Date
+            lbl_td = Gtk.Label(label="Time and date")
+            lbl_td.set_xalign(0)
+            lbl_td.set_css_classes(["heading"])
+            main_box.append(lbl_td)
+
+            card_td = Gtk.ListBox()
+            card_td.set_selection_mode(Gtk.SelectionMode.NONE)
+            card_td.set_css_classes(["boxed-list"])
+
+            # 24-hour switch
+            row_24 = Gtk.ListBoxRow()
+            box_24 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            box_24.set_margin_top(12)
+            box_24.set_margin_bottom(12)
+            box_24.set_margin_start(16)
+            box_24.set_margin_end(16)
+
+            v_24 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            l_24_title = Gtk.Label(label="24-hour format")
+            l_24_title.set_xalign(0)
+            l_24_desc = Gtk.Label(label="Use 24-hour time instead of AM/PM.")
+            l_24_desc.set_xalign(0)
+            l_24_desc.set_css_classes(["dim-label"])
+            v_24.append(l_24_title)
+            v_24.append(l_24_desc)
+
+            sw_24 = Gtk.Switch()
+            sw_24.set_active(self.cfg.get("format_24h", True))
+
+            box_24.append(v_24)
+            box_24.append(Gtk.Label(hexpand=True))
+            box_24.append(sw_24)
+            row_24.set_child(box_24)
+            card_td.append(row_24)
+
+            main_box.append(card_td)
+
+            self.set_child(main_box)
+
+            # Apply Stylesheet
+            css = Gtk.CssProvider()
+            css.load_from_data(b"""
+                window {
+                    background-color: #1a1c23;
+                    color: #e2e8f0;
+                }
+                .boxed-list {
+                    background-color: #242731;
+                    border-radius: 12px;
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                }
+                .heading {
+                    font-weight: bold;
+                    font-size: 14px;
+                    color: #94a3b8;
+                }
+                .dim-label {
+                    font-size: 12px;
+                    color: #64748b;
+                }
+            """)
+            Gtk.StyleContext.add_provider_for_display(
+                self.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+    app = Gtk.Application(application_id="org.nexoos.clocksettings")
+    def on_activate(app):
+        win = ClockSettingsWindow(app)
+        win.present()
+    app.connect('activate', on_activate)
+    app.run(sys.argv)
+
+except Exception as e:
+    print(f"Clock Settings GUI: {e}")

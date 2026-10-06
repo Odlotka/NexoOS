@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Anti-Snoop & Hardware Privacy Control Center (nexo-antisnoop)
+# Mute microphones, disable webcam drivers, guard clipboard & launch vault
+# ==============================================================================
+
+set -euo pipefail
+
+function toggle_mic() {
+    if command -v wpctl >/dev/null 2>&1; then
+        wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+        local state
+        state=$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null || true)
+        if [[ "${state}" =~ MUTED ]]; then
+            notify-send -i audio-input-microphone-muted "NexoOS Anti-Snoop" "🎤 Mikrofon został WYCISZONY (Ochrona przed podsłuchem)."
+        else
+            notify-send -i audio-input-microphone "NexoOS Anti-Snoop" "🎤 Mikrofon został WŁĄCZONY."
+        fi
+    fi
+}
+
+function toggle_cam() {
+    if lsmod | grep -q "uvcvideo"; then
+        sudo modprobe -r uvcvideo 2>/dev/null || true
+        notify-send -i camera-disabled "NexoOS Anti-Snoop" "📷 Kamera internetowa została ODŁĄCZONA na poziomie jądra."
+    else
+        sudo modprobe uvcvideo 2>/dev/null || true
+        notify-send -i camera-web "NexoOS Anti-Snoop" "📷 Kamera internetowa została WŁĄCZONA."
+    fi
+}
+
+function show_menu() {
+    local mic_status="Włączony"
+    if command -v wpctl >/dev/null 2>&1 && wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null | grep -q "MUTED"; then
+        mic_status="WYCISZONY (Bezpieczny)"
+    fi
+
+    local cam_status="Włączona"
+    if ! lsmod | grep -q "uvcvideo"; then
+        cam_status="ODŁĄCZONA (Zablokowana)"
+    fi
+
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Ochrony Przed Kradzieżą Danych (Anti-Snoop)" \
+        --text="Mikrofon: <b>${mic_status}</b> | Kamera: <b>${cam_status}</b>\nWybierz moduł bezpieczeństwa:" \
+        --column="Wybierz" --column="Moduł" --column="Opis działania" \
+        TRUE "Przełącz Mikrofon (Wycisz / Odcisz)" "Sprzętowe wyciszenie wejścia audio PipeWire" \
+        FALSE "Przełącz Kamerę (Odłącz sterownik)" "Usunięcie sterownika kamery uvcvideo z jądra Linux" \
+        FALSE "Bezpieczny Schowek (Anti-Clipboard)" "Czyszczenie schowka i ochrona przed snifferami" \
+        FALSE "Zaszyfrowany Sejf Plików (Nexo Vault)" "Szyfrowanie prywatnych dokumentów AES-256" \
+        FALSE "Wyczyść pamięć RAM ze śladów" "Natychmiastowe nadpisanie buforów pamięci operacyjnej" \
+        --width=680 --height=280) || exit 0
+
+    case "${choice}" in
+        *"Mikrofon"*)   toggle_mic ;;
+        *"Kamerę"*)     toggle_cam ;;
+        *"Schowek"*)    /usr/bin/nexo-clipboard-guard gui ;;
+        *"Sejf"*)       /usr/bin/nexo-vault gui ;;
+        *"pamięć RAM"*) sudo /usr/bin/nexo-cli clean; notify-send "NexoOS" "Pamięć RAM wyczyszczona." ;;
+    esac
+}
+
+case "${1:-gui}" in
+    mic)    toggle_mic ;;
+    cam)    toggle_cam ;;
+    gui)    show_menu ;;
+    *)
+        echo "Użycie: nexo-antisnoop {mic|cam|gui}"
+        exit 1
+        ;;
+esac

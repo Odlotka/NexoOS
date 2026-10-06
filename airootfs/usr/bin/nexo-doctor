@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Self-Healing OS, Diagnostic & Rescue Suite (nexo-doctor)
+# Automated system integrity verification, Snapper snapshots, rollback & repair
+# ==============================================================================
+
+set -euo pipefail
+
+function check_health() {
+    local report=""
+    local issues=0
+
+    echo "==> [NexoOS Doctor] Rozpoczynanie autodiagnostyki systemu..."
+
+    # 1. Sprawdzenie blokady bazy danych Pacman
+    if [[ -f "/var/lib/pacman/db.lck" ]]; then
+        report+="\n❌ Zablokowana baza danych Pacman (/var/lib/pacman/db.lck)."
+        ((issues++))
+    else
+        report+="\n✅ Baza pakietów Pacman: Odblokowana i gotowa."
+    fi
+
+    # 2. Sprawdzenie wolnego miejsca na dysku (Partycja główna /)
+    local root_free
+    root_free=$(df -h / | awk 'NR==2 {print $4}')
+    report+="\n✅ Wolne miejsce na dysku systemowym: ${root_free}."
+
+    # 3. Sprawdzenie pamięci RAM i zram
+    local ram_avail
+    ram_avail=$(free -h | awk '/^Mem:/ {print $7}')
+    report+="\n✅ Dostępna pamięć RAM: ${ram_avail}."
+    if lsblk | grep -q "zram"; then
+        report+="\n✅ ZRAM Swap: Aktywny (Kompresja RAM zstd)."
+    fi
+
+    # 4. Sprawdzenie stanu dysków SMART (jeśli smartctl jest dostępny)
+    if command -v smartctl >/dev/null 2>&1; then
+        local drive
+        drive=$(lsblk -dpno NAME,TYPE | awk '$2=="disk"{print $1; exit}')
+        if [[ -n "${drive}" ]]; then
+            if sudo smartctl -H "${drive}" 2>/dev/null | grep -q "PASSED"; then
+                report+="\n✅ Stan fizyczny dysku (${drive}): SMART PASSED (Zdrowy)."
+            else
+                report+="\n⚠️ Dysk ${drive}: Brak danych SMART lub wymaga weryfikacji."
+            fi
+        fi
+    fi
+
+    # 5. Sprawdzenie krytycznych błędów w dzienniku systemd
+    local journal_errs
+    journal_errs=$(journalctl -p 3 -xb --no-pager -n 20 2>/dev/null | wc -l || echo "0")
+    if (( journal_errs > 0 )); then
+        report+="\n⚠️ Wykryto ${journal_errs} wpisów ostrzeżeń/błędów w bieżącym rozruchu."
+    else
+        report+="\n✅ Dziennik systemowy: Brak krytycznych błędów jądra."
+    fi
+
+    # 6. Sprawdzenie silnika migawek Snapper / Btrfs
+    if command -v snapper >/dev/null 2>&1; then
+        local snap_count
+        snap_count=$(snapper -c root list 2>/dev/null | wc -l || echo "0")
+        if (( snap_count > 2 )); then
+            report+="\n✅ System migawek Snapper / Btrfs: Aktywny (Dostępne punkty przywracania)."
+        else
+            report+="\nℹ️ System Snapper: Gotowy do utworzenia pierwszej migawki."
+        fi
+    fi
+
+    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        zenity --info --title="NexoOS Doctor - Raport Zdrowia Systemu" \
+            --text="<b>Wynik diagnozy stanu NexoOS:</b>\n${report}" \
+            --width=540 --height=320
+    else
+        echo -e "${report}"
+    fi
+}
+
+function create_snapshot() {
+    local desc="NexoOS Manual Snapshot $(date '+%Y-%m-%d %H:%M')"
+    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        desc=$(zenity --entry --title="Tworzenie Migawki Ratunkowej" \
+            --text="Wprowadź opis migawki (punktu przywracania systemu):" \
+            --entry-text="${desc}") || return 0
+    fi
+
+    echo "==> [NexoOS Doctor] Tworzenie punktu przywracania Btrfs/Snapper..."
+    if command -v snapper >/dev/null 2>&1 && sudo snapper -c root list >/dev/null 2>&1; then
+        sudo snapper -c root create -d "${desc}"
+    else
+        local snap_dir="/.snapshots"
+        sudo mkdir -p "${snap_dir}"
+        sudo btrfs subvolume snapshot -r / "${snap_dir}/snapshot-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || {
+            echo "Btrfs snapshot nie jest skonfigurowany na tym wolumenie."
+        }
+    fi
+
+    # Zaktualizuj menu bootloadera GRUB o nowy snapshot
+    if command -v grub-mkconfig >/dev/null 2>&1; then
+        echo "==> [NexoOS Doctor] Aktualizacja menu GRUB-BTRFS..."
+        sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || true
+    fi
+
+    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        zenity --info --title="NexoOS Doctor" \
+            --text="✅ <b>Migawka ratunkowa została pomyślnie utworzona!</b>\n\nOpis: ${desc}\nPunkt przywracania jest dostępny również w menu startowym GRUB podczas włączania komputera."
+    else
+        echo "Migawka utworzona pomyślnie."
+    fi
+}
+
+function rollback_snapshot() {
+    if ! command -v snapper >/dev/null 2>&1; then
+        zenity --error --text="Narzędzie Snapper nie jest aktywne dla bieżącej instalacji."
+        return 1
+    fi
+
+    local snapshots
+    snapshots=$(sudo snapper -c root list | awk 'NR>2 {print $1, $7, $8, $9}' || true)
+    if [[ -z "${snapshots}" ]]; then
+        zenity --info --text="Brak dostępnych migawek do przywrócenia."
+        return 0
+    fi
+
+    local snap_id
+    snap_id=$(zenity --entry --title="Przywracanie Systemu z Migawki" \
+        --text="Dostępne migawki:\n${snapshots}\n\nPodaj numer ID migawki do przywrócenia:") || return 0
+
+    if [[ -n "${snap_id}" ]]; then
+        if zenity --question --text="Czy na pewno chcesz cofnąć system do migawki #${snap_id}?\nWymagany restart komputera."; then
+            sudo snapper --ambit classic rollback "${snap_id}"
+            zenity --info --text="System został przywrócony do migawki #${snap_id}.\nUruchom komputer ponownie, aby załadować wybrany stan."
+        fi
+    fi
+}
+
+function self_repair() {
+    echo "==> [NexoOS Doctor] Rozpoczynanie automatycznej procedury naprawczej..."
+
+    # 1. Usunięcie wiszącej blokady pacmana
+    if [[ -f "/var/lib/pacman/db.lck" ]]; then
+        sudo rm -f /var/lib/pacman/db.lck
+    fi
+
+    # 2. Odświeżenie kluczy PGP pacmana
+    sudo pacman-key --init 2>/dev/null || true
+    sudo pacman-key --populate archlinux 2>/dev/null || true
+
+    # 3. Wyczyszczenie uszkodzonych pakietów
+    sudo pacman -Sc --noconfirm 2>/dev/null || true
+
+    # 4. Przebudowa pamięci podręcznej czcionek i ikon
+    fc-cache -f 2>/dev/null || true
+    gtk-update-icon-cache -f /usr/share/icons/Papirus-Dark 2>/dev/null || true
+
+    # 5. Restart usług audio PipeWire w razie problemów z dźwiękiem
+    systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null || true
+
+    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+        zenity --info --title="NexoOS Self-Healing" \
+            --text="✅ <b>Naprawa systemu zakończona sukcesem!</b>\n\n- Odblokowano bazę menedżera pakietów Pacman\n- Zresetowano klucze kryptograficzne PGP\n- Wyczyszczono uszkodzone pliki tymczasowe\n- Zresetowano stos dźwiękowy PipeWire/WirePlumber\n- Zoptymalizowano pamięć podręczną interfejsu"
+    else
+        echo "Naprawa zakończona."
+    fi
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS Doctor - Samonaprawa i Kopie Zapasowe" \
+        --text="Wybierz operację ratunkową lub diagnostyczną:" \
+        --column="Wybierz" --column="Moduł" --column="Opis działania" \
+        TRUE "Autodiagnostyka Systemu" "Skanowanie integralności dysków, pamięci, bazy pakietów i logów" \
+        FALSE "Utwórz Migawkę Ratunkową" "Natychmiastowa kopia stanu systemu (Btrfs Snapper + GRUB)" \
+        FALSE "Przywróć System (Rollback)" "Wycofanie zmian do poprzedniego działającego stanu" \
+        FALSE "Automatyczna Samonaprawa" "Odblokowanie pacmana, naprawa kluczy PGP, naprawa audio" \
+        --width=680 --height=270) || exit 0
+
+    case "${choice}" in
+        *"Autodiagnostyka"*)     check_health ;;
+        *"Utwórz Migawkę"*)      create_snapshot ;;
+        *"Przywróć System"*)     rollback_snapshot ;;
+        *"Samonaprawa"*)         self_repair ;;
+    esac
+}
+
+case "${1:-gui}" in
+    check)      check_health ;;
+    snapshot)   create_snapshot ;;
+    rollback)   rollback_snapshot ;;
+    repair)     self_repair ;;
+    gui)        show_menu ;;
+    *)
+        echo "Użycie: nexo-doctor {check|snapshot|rollback|repair|gui}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Media Downloader (nexo-downloader)
+# Fast, clean YouTube / TikTok / Twitter media downloader powered by yt-dlp
+# ==============================================================================
+
+set -euo pipefail
+
+# Sprawdź czy w schowku jest link
+CLIP_URL=$(wl-paste -n 2>/dev/null || true)
+DEFAULT_URL=""
+if [[ "${CLIP_URL}" =~ ^https?:// ]]; then
+    DEFAULT_URL="${CLIP_URL}"
+fi
+
+URL=$(zenity --entry --title="NexoOS Szybki Pobieracz Multimediów" \
+    --text="Wklej link do wideo (YouTube, TikTok, Twitter, Instagram):" \
+    --entry-text="${DEFAULT_URL}") || exit 0
+
+if [[ -z "${URL}" ]]; then
+    exit 0
+fi
+
+FORMAT=$(zenity --list --radiolist \
+    --title="Wybierz Format Pobierania" \
+    --column="Wybierz" --column="Format" \
+    TRUE "Wideo MP4 (Najwyższa jakość)" \
+    FALSE "Tylko Dźwięk MP3 (320kbps)") || exit 0
+
+DOWNLOAD_DIR="${HOME}/Wideo"
+FORMAT_ARG="-f bestvideo+bestaudio/best --merge-output-format mp4"
+
+if [[ "${FORMAT}" == *"MP3"* ]]; then
+    DOWNLOAD_DIR="${HOME}/Muzyka"
+    FORMAT_ARG="-x --audio-format mp3 --audio-quality 0"
+fi
+
+mkdir -p "${DOWNLOAD_DIR}"
+notify-send -i download "NexoOS Downloader" "Rozpoczynam pobieranie do: ${DOWNLOAD_DIR}..."
+
+if yt-dlp ${FORMAT_ARG} -P "${DOWNLOAD_DIR}" "${URL}" >/dev/null 2>&1; then
+    command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i complete 2>/dev/null || true
+    notify-send -i video-x-generic "NexoOS Downloader" "✅ Pobieranie zakończone pomyślnie!\nPlik zapisany w: ${DOWNLOAD_DIR}"
+else
+    notify-send -u critical -i dialog-error "NexoOS Downloader" "Wystąpił błąd podczas pobierania."
+fi

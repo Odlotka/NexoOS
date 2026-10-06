@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Nexo USB Guard (Ochrona Pendrive)
+Comment=Inspekcja zawartości nośników USB, ochrona BadUSB i blokada skryptów
+Exec=/usr/bin/nexo-usb-guard gui
+Icon=drive-removable-media
+Terminal=false
+Type=Application
+Categories=System;Security;HardwareSettings;

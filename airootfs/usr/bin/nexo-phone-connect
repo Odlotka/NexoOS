@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Phone Integration Assistant (nexo-phone-connect)
+# KDE Connect wizard: notification sync, shared clipboard & wireless file drop
+# ==============================================================================
+
+set -euo pipefail
+
+function ensure_daemon() {
+    if ! pgrep -f kdeconnectd >/dev/null 2>&1; then
+        nohup /usr/lib/kdeconnectd >/dev/null 2>&1 &
+        sleep 1
+    fi
+}
+
+function pair_device() {
+    ensure_daemon
+    if command -v kdeconnect-app >/dev/null 2>&1; then
+        kdeconnect-app &
+    elif command -v kdeconnect-settings >/dev/null 2>&1; then
+        kdeconnect-settings &
+    else
+        local devices
+        devices=$(kdeconnect-cli -a --id-name-only 2>/dev/null || true)
+        zenity --info --title="Wykryte Urządzenia" --text="Dostępne urządzenia:\n${devices}\n\nZainstaluj aplikację KDE Connect na telefonie i połącz się z tą samą siecią Wi-Fi."
+    fi
+}
+
+function send_file_to_phone() {
+    ensure_daemon
+    local file
+    file=$(zenity --file-selection --title="Wybierz plik do wysłania na telefon") || return 0
+    
+    local dev_id
+    dev_id=$(kdeconnect-cli -a --id-only | head -n1 || true)
+    if [[ -n "${dev_id}" ]]; then
+        kdeconnect-cli -d "${dev_id}" --share "${file}"
+        notify-send -i phone "NexoOS Phone Sync" "Plik ${file} został wysłany na Twój telefon!"
+    else
+        zenity --error --text="Brak sparowanego telefonu w tej samej sieci Wi-Fi!"
+    fi
+}
+
+function show_menu() {
+    ensure_daemon
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Połączenie ze Smartfonem (Android / iOS)" \
+        --text="Zarządzaj integracją komputera ze smartfonem:" \
+        --column="Wybierz" --column="Akcja" --column="Opis działania" \
+        TRUE "Sparuj nowy telefon (Kreator)" "Wyszukaj telefon w sieci Wi-Fi i nawiąż bezpieczne połączenie" \
+        FALSE "Prześlij plik na telefon bezprzewodowo" "Błyskawiczny transfer zdjęcia, filmu lub dokumentu" \
+        FALSE "Wyślij SMS z komputera" "Otwiera panel wiadomości SMS ze sparowanego telefonu" \
+        FALSE "Włącz / Wyłącz synchronizację schowka" "Współdzielenie schowka między telefonem a PC" \
+        --width=680 --height=260) || exit 0
+
+    case "${choice}" in
+        *"Sparuj"*)     pair_device ;;
+        *"Prześlij"*)   send_file_to_phone ;;
+        *"SMS"*)        kdeconnect-sms & ;;
+        *"schowka"*)    notify-send "NexoOS" "Synchronizacja schowka jest aktywna automatycznie po sparowaniu." ;;
+    esac
+}
+
+show_menu

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Połączenie z Telefonem (KDE Connect)
+Comment=Wspólny schowek, przesyłanie plików i powiadomienia ze smartfona
+Exec=/usr/bin/nexo-phone-connect
+Icon=smartphone
+Terminal=false
+Type=Application
+Categories=Utility;Network;Telephony;

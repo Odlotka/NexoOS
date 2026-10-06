@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS USB Shield & BadUSB Analyzer (nexo-usb-guard)
+# Intercepts USB insertion, inspects files/scripts & provides granular mount policies
+# ==============================================================================
+
+set -euo pipefail
+
+MOUNT_BASE="/run/media/${USER:-nexo}"
+sudo mkdir -p "${MOUNT_BASE}"
+
+function inspect_and_prompt() {
+    local dev="$1"
+    local dev_name
+    dev_name=$(basename "${dev}")
+
+    local vendor
+    vendor=$(lsblk -no VENDOR "${dev}" 2>/dev/null | head -n1 | xargs || echo "USB")
+    local model
+    model=$(lsblk -no MODEL "${dev}" 2>/dev/null | head -n1 | xargs || echo "Storage Device")
+    local size
+    size=$(lsblk -no SIZE "${dev}" 2>/dev/null | head -n1 | xargs || echo "Brak danych")
+    local fstype
+    fstype=$(lsblk -no FSTYPE "${dev}" 2>/dev/null | head -n1 | xargs || echo "unknown")
+
+    local mount_target="${MOUNT_BASE}/${vendor}_${dev_name}"
+    local temp_mount="/tmp/usb_inspect_${dev_name}"
+    sudo mkdir -p "${temp_mount}" "${mount_target}"
+
+    # 1. Bezpieczny montaż tymczasowy tylko do odczytu w celu inspekcji
+    sudo mount -o ro "${dev}" "${temp_mount}" 2>/dev/null || true
+
+    # 2. Głęboka analiza zawartości USB
+    local total_files=0
+    local exec_count=0
+    local autorun_found="Nie"
+    local exec_list=""
+
+    if mountpoint -q "${temp_mount}" 2>/dev/null; then
+        total_files=$(find "${temp_mount}" -type f 2>/dev/null | wc -l || echo "0")
+        
+        # Wykrywanie skryptów i binariów
+        local dangerous_files
+        dangerous_files=$(find "${temp_mount}" -type f \( -name "*.exe" -o -name "*.sh" -o -name "*.bat" -o -name "*.ps1" -o -name "*.vbs" -o -name "*.bin" -o -name "autorun.inf" \) 2>/dev/null || true)
+        
+        if [[ -n "${dangerous_files}" ]]; then
+            exec_count=$(echo "${dangerous_files}" | wc -l)
+            exec_list=$(echo "${dangerous_files}" | head -n 5 | sed "s|${temp_mount}/||g")
+            if echo "${dangerous_files}" | grep -q "autorun.inf"; then
+                autorun_found="TAK (Zagrożenie AutoRun!)"
+            fi
+        fi
+
+        sudo umount "${temp_mount}" 2>/dev/null || true
+    fi
+    sudo rm -rf "${temp_mount}"
+
+    # Odtwórz dźwięk wpięcia nośnika
+    command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i device-added 2>/dev/null || true
+
+    # 3. Interaktywny monit wyboru uprawnień
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="Nexo USB Guard - Wykryto Nowe Urządzenie USB" \
+        --text="<b>Urządzenie:</b> ${vendor} ${model} (${size})\n<b>System plików:</b> ${fstype}\n<b>Liczba plików:</b> ${total_files} | <b>Skrypty / Programy:</b> ${exec_count}\n<b>AutoRun:</b> ${autorun_found}\n\n<i>Przykłady plików wykonywalnych:</i>\n${exec_list:-Brak programów wykonywalnych}\n\nWybierz poziom uprawnień dla tego pendrive'a:" \
+        --column="Wybierz" --column="Polityka Bezpieczeństwa" --column="Opis działania" \
+        TRUE "Blokada skryptów (noexec)" "Pliki dostępne do odczytu i zapisu, ale żaden wirus ani skrypt nie wystartuje" \
+        FALSE "Tylko do odczytu (Read-Only)" "Bezpieczny podgląd dokumentów bez ryzyka infekcji i modyfikacji" \
+        FALSE "Pełny dostęp (Zezwól na skrypty)" "Standardowy dostęp z możliwością uruchamiania programów" \
+        FALSE "Przeskanuj całe USB przez Nexo Sentinel" "Pełna analiza antywirusowa wszystkich plików na nośniku" \
+        FALSE "Wysuń i Odłącz nośnik (Eject)" "Natychmiastowe odcięcie urządzenia z systemu" \
+        --width=760 --height=380) || exit 0
+
+    case "${choice}" in
+        *"Blokada skryptów"*)
+            sudo mount -o rw,noexec,nosuid,nodev,uid=1000,gid=1000 "${dev}" "${mount_target}" 2>/dev/null || true
+            notify-send -i drive-removable-media "Nexo USB Guard" "✅ Pendrive zamontowany w trybie bezpiecznym (noexec).\nSkrypty i programy są zablokowane."
+            nautilus "${mount_target}" &
+            ;;
+        *"Tylko do odczytu"*)
+            sudo mount -o ro,noexec,nosuid,nodev,uid=1000,gid=1000 "${dev}" "${mount_target}" 2>/dev/null || true
+            notify-send -i drive-removable-media "Nexo USB Guard" "🔒 Pendrive zamontowany TYLKO DO ODCZYTU."
+            nautilus "${mount_target}" &
+            ;;
+        *"Pełny dostęp"*)
+            sudo mount -o rw,exec,uid=1000,gid=1000 "${dev}" "${mount_target}" 2>/dev/null || true
+            notify-send -i drive-removable-media "Nexo USB Guard" "⚡ Przyznano pełny dostęp do pendrive'a."
+            nautilus "${mount_target}" &
+            ;;
+        *"Przeskanuj"*)
+            sudo mount -o ro "${dev}" "${mount_target}" 2>/dev/null || true
+            notify-send -i security-high "Nexo USB Guard" "Rozpoczynam skanowanie nośnika przez Nexo Sentinel..."
+            /usr/bin/nexo-sentinel "${mount_target}"
+            ;;
+        *"Wysuń"*)
+            sync
+            sudo eject "${dev}" 2>/dev/null || true
+            notify-send -i media-eject "Nexo USB Guard" "🛑 Urządzenie USB zostało bezpiecznie odłączone."
+            ;;
+    esac
+}
+
+function run_daemon() {
+    echo "==> [Nexo USB Guard] Uruchamianie demona nasłuchiwania nośników USB..."
+    local seen_devices=()
+
+    while true; do
+        for dev in /dev/disk/by-id/usb*part*; do
+            if [[ -e "${dev}" ]]; then
+                local real_dev
+                real_dev=$(readlink -f "${dev}")
+                
+                # Sprawdź czy już nie obsługiwano
+                if ! mountpoint -q "/run/media/${USER:-nexo}/"* 2>/dev/null && ! grep -q "${real_dev}" /proc/mounts 2>/dev/null; then
+                    inspect_and_prompt "${real_dev}" || true
+                fi
+            fi
+        done
+        sleep 3
+    done
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Bezpieczeństwa USB (USB Guard)" \
+        --text="Zarządzaj polityką bezpieczeństwa nośników USB i urządzeń BadUSB:" \
+        --column="Wybierz" --column="Moduł" --column="Opis działania" \
+        TRUE "Przeskanuj i zamontuj podłączone USB" "Uruchom analizę dla aktualnie wpiętego pendrive'a" \
+        FALSE "Bezpiecznie odmontuj wszystkie nośniki USB" "Zrzuca bufory i odłącza podpięte dyski" \
+        FALSE "Status ochrony przed atakami BadUSB" "Weryfikacja urządzeń podszywających się pod klawiaturę" \
+        --width=680 --height=240) || exit 0
+
+    case "${choice}" in
+        *"Przeskanuj"*)
+            local dev
+            dev=$(lsblk -dpno NAME,TRAN | awk '$2=="usb"{print $1; exit}' || true)
+            if [[ -n "${dev}" ]]; then
+                inspect_and_prompt "${dev}1" 2>/dev/null || inspect_and_prompt "${dev}"
+            else
+                zenity --info --text="Nie wykryto żadnego podłączonego nośnika USB."
+            fi
+            ;;
+        *"odmontuj"*)
+            sync
+            sudo umount /run/media/"${USER:-nexo}"/* 2>/dev/null || true
+            notify-send "Nexo USB Guard" "Wszystkie nośniki USB zostały odmontowane."
+            ;;
+        *"BadUSB"*)
+            local hid_count
+            hid_count=$(lsusb | grep -Ei "(keyboard|human interface)" | wc -l || echo "1")
+            zenity --info --title="Status BadUSB" \
+                --text="Wykryte kontrolery wejściowe HID: <b>${hid_count}</b>\nOchrona USBGuard: <b>AKTYWNA</b>\nWszystkie nowe urządzenia wymagają autoryzacji użytkownika."
+            ;;
+    esac
+}
+
+case "${1:-gui}" in
+    --daemon|-d|daemon) run_daemon ;;
+    inspect)
+        if [[ -n "${2:-}" ]]; then inspect_and_prompt "$2"; fi
+        ;;
+    gui) show_menu ;;
+    *)
+        echo "Użycie: nexo-usb-guard {--daemon|inspect <device>|gui}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Run in Isolated Sandbox
+Comment=Execute Windows binary in an unprivileged Bubblewrap container
+Exec=/usr/bin/nexo-wine-manager sandbox %f
+Icon=security-high
+Terminal=false
+Type=Application
+MimeType=application/x-ms-dos-executable;application/x-msi;application/x-wine-extension-msp;
+NoDisplay=false
+Categories=Utility;

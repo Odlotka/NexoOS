@@ -1,0 +1,17 @@
+[Unit]
+Description=NexoOS Ephemeral Hostname & Machine-ID Anti-Forensics Generator
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  NEW_HOST="nexo-$(head -c 3 /dev/urandom | xxd -p)"; \
+  hostnamectl set-hostname "${NEW_HOST}"; \
+  systemd-machine-id-setup; \
+  systemctl restart systemd-hostnamed.service \
+'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

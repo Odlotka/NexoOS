@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=NexoOS Smart .EXE Launcher
+Comment=Uruchamiaj aplikacje Windows przez Wine, Proton lub bezpieczną piaskownicę
+Exec=/usr/bin/nexo-exe-launcher %f
+Icon=wine
+Terminal=false
+Type=Application
+MimeType=application/x-msdownload;application/x-ms-dos-executable;application/x-msi;application/x-bat;
+Categories=System;Utility;Emulator;
+NoDisplay=false

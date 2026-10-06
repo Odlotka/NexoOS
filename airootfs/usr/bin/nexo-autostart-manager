@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Visual Autostart Manager (nexo-autostart-manager)
+# Graphical checklist to enable / disable startup programs and services
+# ==============================================================================
+
+set -euo pipefail
+
+AUTOSTART_DIR="${HOME}/.config/autostart"
+mkdir -p "${AUTOSTART_DIR}"
+
+function list_autostarts() {
+    local items=()
+    
+    # 1. Sprawdź znane aplikacje w ~/.config/autostart
+    for file in "${AUTOSTART_DIR}"/*.desktop; do
+        if [[ -f "${file}" ]]; then
+            local name
+            name=$(grep -E "^Name=" "${file}" | head -n1 | cut -d'=' -f2- || basename "${file}")
+            local hidden
+            hidden=$(grep -E "^Hidden=true" "${file}" 2>/dev/null || true)
+            local state="TRUE"
+            if [[ -n "${hidden}" ]]; then
+                state="FALSE"
+            fi
+            items+=("${state}" "$(basename "${file}")" "${name}")
+        fi
+    done
+
+    # Jeśli pusto, zaproponuj popularne aplikacje
+    if (( ${#items[@]} == 0 )); then
+        items+=(
+            "FALSE" "steam.desktop" "Steam Gaming Client"
+            "FALSE" "discord.desktop" "Discord Messenger"
+            "FALSE" "spotify.desktop" "Spotify Muzyka"
+            "TRUE"  "nexo-replay.desktop" "NexoOS GPU Instant Replay (ShadowPlay)"
+            "TRUE"  "nexo-nightmode.desktop" "NexoOS Automatyczny Tryb Nocny"
+        )
+    fi
+
+    local selected
+    selected=$(zenity --list --checklist \
+        --title="NexoOS - Menedżer Programów Autostartu" \
+        --text="Zaznacz programy, które mają włączać się automatycznie przy starcie systemu:" \
+        --column="Włączony" --column="Identyfikator" --column="Nazwa Aplikacji" \
+        "${items[@]}" \
+        --separator="|" \
+        --width=680 --height=340) || return 0
+
+    # Zaktualizuj stany
+    for file in "${AUTOSTART_DIR}"/*.desktop; do
+        if [[ -f "${file}" ]]; then
+            local base
+            base=$(basename "${file}")
+            if [[ "${selected}" == *"${base}"* ]]; then
+                sed -i '/^Hidden=/d' "${file}"
+                echo "Hidden=false" >> "${file}"
+            else
+                sed -i '/^Hidden=/d' "${file}"
+                echo "Hidden=true" >> "${file}"
+            fi
+        fi
+    done
+
+    notify-send "NexoOS Autostart" "✅ Ustawienia autostartu zostały zaktualizowane."
+}
+
+function add_custom_autostart() {
+    local app
+    app=$(zenity --file-selection --title="Wybierz aplikację lub skrypt do autostartu") || return 0
+    local app_name
+    app_name=$(basename "${app}")
+
+    cat << EOF > "${AUTOSTART_DIR}/${app_name}.desktop"
+[Desktop Entry]
+Type=Application
+Name=${app_name}
+Exec=${app}
+Hidden=false
+X-GNOME-Autostart-enabled=true
+EOF
+    notify-send "NexoOS Autostart" "Dodano ${app_name} do autostartu."
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Autostartu" \
+        --text="Wybierz akcję zarządzania aplikacjami startowymi:" \
+        --column="Wybierz" --column="Akcja" --column="Opis" \
+        TRUE "Zarządzaj aktywnymi programami autostartu" "Przeglądaj i przełączaj listę aplikacji" \
+        FALSE "Dodaj nowy własny program do startu" "Wskaż plik wykonywalny lub skrypt" \
+        --width=620 --height=220) || exit 0
+
+    case "${choice}" in
+        *"Zarządzaj"*) list_autostarts ;;
+        *"Dodaj"*)     add_custom_autostart ;;
+    esac
+}
+
+show_menu

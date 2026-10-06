@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Menedżer Autostartu
+Comment=Włączaj i wyłączaj programy uruchamiane ze startem systemu
+Exec=/usr/bin/nexo-autostart-manager
+Icon=system-run
+Terminal=false
+Type=Application
+Categories=Settings;DesktopSettings;Utility;

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NexoOS Wine Manager
+Comment=Manage Windows Processes, Shader Caches, and Wine Prefixes
+Exec=/usr/bin/nexo-wine-manager
+Icon=wine
+Terminal=false
+Type=Application
+Categories=Utility;System;

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Zaszyfrowany Sejf Plików (Nexo Vault)
+Comment=Pancerny sejf na dokumenty i hasła z szyfrowaniem AES-256-GCM
+Exec=/usr/bin/nexo-vault gui
+Icon=system-lock-screen
+Terminal=false
+Type=Application
+Categories=Utility;Security;System;

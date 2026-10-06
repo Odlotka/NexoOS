@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Dock Position Switcher
+# Allows placing the taskbar on Bottom (Default), Top, Left or Right
+# ==============================================================================
+
+set -euo pipefail
+
+POSITION="${1:-}"
+
+if [[ -z "$POSITION" ]]; then
+    POSITION=$(zenity --list --radiolist \
+        --title="Pozycja Paska Zadań (Dok NexoOS)" \
+        --text="Wybierz krawędź ekranu dla paska zadań:" \
+        --column="Wybierz" --column="Pozycja" --column="Opis" \
+        TRUE "Dół" "Domyślnie na dole ekranu (Styl nowoczesnego Doku)" \
+        FALSE "Góra" "Na samej górze ekranu" \
+        FALSE "Lewo" "Pionowy pasek po lewej stronie" \
+        FALSE "Prawo" "Pionowy pasek po prawej stronie" \
+        --width=540 --height=260) || exit 0
+fi
+
+case "$POSITION" in
+    *"Dół"*|*"bottom"*)
+        POS="bottom"
+        ;;
+    *"Góra"*|*"top"*)
+        POS="top"
+        ;;
+    *"Lewo"*|*"left"*)
+        POS="left"
+        ;;
+    *"Prawo"*|*"right"*)
+        POS="right"
+        ;;
+    *)
+        POS="bottom"
+        ;;
+esac
+
+CONF="$HOME/.config/waybar/config-dock.jsonc"
+STYLE="$HOME/.config/waybar/style-dock.css"
+
+if [[ -f "$CONF" ]]; then
+    # Update position in JSON configuration
+    sed -i -E "s/\"position\":\s*\"(bottom|top|left|right)\"/\"position\": \"$POS\"/" "$CONF"
+    
+    # Adjust margin based on position
+    sed -i -E "s/\"margin-(bottom|top|left|right)\":\s*[0-9]+/\"margin-$POS\": 12/" "$CONF"
+    
+    # Adjust height/width for horizontal vs vertical layout
+    if [[ "$POS" == "left" || "$POS" == "right" ]]; then
+        sed -i -E 's/"height":\s*[0-9]+/"width": 64/' "$CONF"
+    else
+        sed -i -E 's/"width":\s*[0-9]+/"height": 58/' "$CONF"
+    fi
+
+    # Restart Waybar instantly
+    pkill waybar || true
+    sleep 0.3
+    waybar -c "$CONF" -s "$STYLE" &
+    notify-send "NexoOS" "Zastosowano nową pozycję paska: $POS"
+fi

@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Windows Disk Mounter (nexo-mount-windows)
+# Auto-detects NTFS and BitLocker partitions, mounts with full low-latency R/W
+# ==============================================================================
+
+set -euo pipefail
+
+MOUNT_BASE="/run/media/${USER:-nexo}"
+sudo mkdir -p "${MOUNT_BASE}"
+
+function mount_all_ntfs() {
+    local mounted_count=0
+    echo "==> [NexoOS] Skanowanie dysków w poszukiwaniu partycji Windows (NTFS / BitLocker)..."
+
+    # Znajdź partycje NTFS
+    while IFS= read -r line; do
+        if [[ -z "${line}" ]]; then continue; fi
+        local dev
+        local label
+        dev=$(echo "${line}" | awk '{print $1}')
+        label=$(echo "${line}" | awk '{print $2}')
+        if [[ -z "${label}" || "${label}" == "null" ]]; then
+            label=$(basename "${dev}")
+        fi
+
+        local target="${MOUNT_BASE}/${label}"
+        sudo mkdir -p "${target}"
+
+        # Sprawdź czy już nie jest zamontowany
+        if mountpoint -q "${target}" 2>/dev/null; then
+            continue
+        fi
+
+        echo "==> Montowanie ${dev} -> ${target}..."
+        if sudo mount -t ntfs-3g -o uid=1000,gid=1000,dmask=027,fmask=137,windows_names,big_writes "${dev}" "${target}" 2>/dev/null; then
+            ((mounted_count++))
+        fi
+    done < <(lsblk -lnpo NAME,LABEL,FSTYPE | awk '$3=="ntfs" {print $1, $2}')
+
+    # Sprawdź partycje BitLocker (obsługa przez cryptsetup)
+    while IFS= read -r dev; do
+        if [[ -z "${dev}" ]]; then continue; fi
+        local bitlk_name="bitlk-$(basename "${dev}")"
+        if [[ ! -e "/dev/mapper/${bitlk_name}" ]]; then
+            if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+                local pass
+                pass=$(zenity --password --title="Odblokuj partycję Windows BitLocker" \
+                    --text="Wykryto zaszyfrowany dysk BitLocker: <b>${dev}</b>\nWprowadź hasło lub klucz odzyskiwania:") || continue
+                if [[ -n "${pass}" ]]; then
+                    echo -n "${pass}" | sudo cryptsetup bitlkOpen "${dev}" "${bitlk_name}" --key-file=- 2>/dev/null || true
+                    if [[ -e "/dev/mapper/${bitlk_name}" ]]; then
+                        local btarget="${MOUNT_BASE}/BitLocker-$(basename "${dev}")"
+                        sudo mkdir -p "${btarget}"
+                        sudo mount "/dev/mapper/${bitlk_name}" "${btarget}" 2>/dev/null || true
+                        ((mounted_count++))
+                    fi
+                fi
+            fi
+        fi
+    done < <(lsblk -lnpo NAME,FSTYPE | awk '$2=="BitLocker" {print $1}')
+
+    if (( mounted_count > 0 )); then
+        notify-send -i drive-harddisk "NexoOS Dyski Windows" "✅ Zamontowano ${mounted_count} partycji Windows w folderze:\n${MOUNT_BASE}"
+    else
+        notify-send -i drive-harddisk "NexoOS Dyski" "Wszystkie dostępne dyski Windows są już zamontowane."
+    fi
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Menedżer Dysków Windows" \
+        --text="Lokalizacja montowania: <b>${MOUNT_BASE}</b>\nWybierz działanie:" \
+        --column="Wybierz" --column="Akcja" --column="Opis" \
+        TRUE "Zamontuj wszystkie dyski Windows (NTFS / BitLocker)" "Wykrywa i natychmiast montuje partycje z grami i plikami" \
+        FALSE "Otwórz folder zamontowanych dysków" "Przejdź do ${MOUNT_BASE} w Nautilusie" \
+        FALSE "Bezpiecznie odmontuj dyski Windows" "Zrzuca bufor zapisu i odłącza partycje" \
+        --width=680 --height=240) || exit 0
+
+    case "${choice}" in
+        *"Zamontuj"*) mount_all_ntfs ;;
+        *"Otwórz"*)    nautilus "${MOUNT_BASE}" & ;;
+        *"odmontuj"*)
+            sync
+            sudo umount "${MOUNT_BASE}"/* 2>/dev/null || true
+            notify-send "NexoOS Dyski" "Dyski zostały bezpiecznie odmontowane."
+            ;;
+    esac
+}
+
+case "${1:-gui}" in
+    mount|auto) mount_all_ntfs ;;
+    gui)        show_menu ;;
+    *)
+        echo "Użycie: nexo-mount-windows {mount|gui}"
+        exit 1
+        ;;
+esac

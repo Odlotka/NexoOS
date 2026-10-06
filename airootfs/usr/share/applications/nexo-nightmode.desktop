@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Tryb Nocny (Ochrona Oczu)
+Comment=Automatyczne ocieplanie barw ekranu i filtr światła niebieskiego
+Exec=/usr/bin/nexo-nightmode gui
+Icon=preferences-desktop-display
+Terminal=false
+Type=Application
+Categories=Settings;DesktopSettings;Utility;

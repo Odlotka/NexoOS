@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Sentinel In-Flight Guard (nexo-sentinel-guard)
+# Real-time filesystem interceptor: scans files as soon as they are written
+# ==============================================================================
+
+set -euo pipefail
+
+CONFIG_DIR="${HOME}/.config/nexo/sentinel"
+STATE_FILE="${CONFIG_DIR}/guard.state"
+
+mkdir -p "${CONFIG_DIR}"
+
+function is_running() {
+    pgrep -f "inotifywait.*nexo_sentinel_monitor" >/dev/null 2>&1
+}
+
+function start_guard() {
+    if is_running; then
+        notify-send -i security-high "Nexo Sentinel" "Strażnik czasu rzeczywistego jest już aktywny."
+        return 0
+    fi
+
+    echo "RUNNING" > "${STATE_FILE}"
+    echo "==> [Nexo Sentinel] Uruchamianie globalnego monitoringu zapisu plików..."
+
+    # Pętla nasłuchująca zdarzeń zapisu w całym katalogu domowym i /tmp
+    nohup bash -c '
+        exec -a nexo_sentinel_monitor inotifywait -m -r -e close_write \
+            --exclude "(\.cache|\.git|\.local/share/Trash|\.mozilla/firefox/.*/cache2)" \
+            "${HOME}" /tmp 2>/dev/null | while read -r path action file; do
+                full_path="${path}${file}"
+                if [[ -f "${full_path}" ]]; then
+                    # Filtruj rozszerzenia wykonywalne, archiwa, skrypty i pobierane pliki
+                    if [[ "${file}" =~ \.(exe|msi|sh|bin|AppImage|elf|bat|vbs|ps1|py|js|jar|iso|crdownload|part|zip|7z|tar\.gz)$ ]]; then
+                        # Zdejmij uprawnienie do wykonania przed analizą
+                        chmod -x "${full_path}" 2>/dev/null || true
+                        # Wywołaj skaner Nexo Sentinel
+                        /usr/bin/nexo-sentinel "${full_path}" &
+                    fi
+                fi
+            done
+    ' >/dev/null 2>&1 &
+
+    notify-send -i security-high "Nexo Sentinel" "🛡️ Ochrona w czasie rzeczywistym WŁĄCZONA.\nKażdy nowo zapisany lub pobrany plik jest natychmiast badany."
+}
+
+function stop_guard() {
+    echo "STOPPED" > "${STATE_FILE}"
+    pkill -f "nexo_sentinel_monitor" 2>/dev/null || true
+    pkill -f "inotifywait.*nexo_sentinel_monitor" 2>/dev/null || true
+    notify-send -i security-low "Nexo Sentinel" "Ochrona w czasie rzeczywistym została ZATRZYMANA."
+}
+
+function toggle_guard() {
+    if is_running; then
+        stop_guard
+    else
+        start_guard
+    fi
+}
+
+case "${1:-start}" in
+    start)  start_guard ;;
+    stop)   stop_guard ;;
+    toggle) toggle_guard ;;
+    status)
+        if is_running; then echo "active"; else echo "inactive"; fi
+        ;;
+    *)
+        echo "Użycie: nexo-sentinel-guard {start|stop|toggle|status}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Night Mode & Blue Light Filter (nexo-nightmode)
+# Eye protection engine with instant toggle, sunset schedule & smooth gamma
+# ==============================================================================
+
+set -euo pipefail
+
+STATE_DIR="${HOME}/.config/nexo"
+STATE_FILE="${STATE_DIR}/nightmode.state"
+TEMP_FILE="${STATE_DIR}/nightmode.temp"
+DEFAULT_TEMP=3800
+
+mkdir -p "${STATE_DIR}"
+
+function is_running() {
+    pgrep -x gammastep >/dev/null 2>&1 || pgrep -x wlsunset >/dev/null 2>&1 || pgrep -x hyprsunset >/dev/null 2>&1
+}
+
+function get_saved_temp() {
+    if [[ -f "${TEMP_FILE}" ]]; then
+        cat "${TEMP_FILE}"
+    else
+        echo "${DEFAULT_TEMP}"
+    fi
+}
+
+function nightmode_on() {
+    local temp
+    temp=$(get_saved_temp)
+    nightmode_off_silent
+
+    if command -v hyprsunset >/dev/null 2>&1; then
+        hyprsunset -t "${temp}" >/dev/null 2>&1 &
+    elif command -v wlsunset >/dev/null 2>&1; then
+        wlsunset -t "${temp}" -T 6500 >/dev/null 2>&1 &
+    elif command -v gammastep >/dev/null 2>&1; then
+        gammastep -O "${temp}" >/dev/null 2>&1 &
+    fi
+
+    echo "ON" > "${STATE_FILE}"
+    notify-send -i weather-clear-night "NexoOS Tryb Nocny" "Filtr światła niebieskiego WŁĄCZONY (${temp}K).\nOchrona wzroku aktywna."
+}
+
+function nightmode_off_silent() {
+    pkill -x gammastep 2>/dev/null || true
+    pkill -x wlsunset 2>/dev/null || true
+    pkill -x hyprsunset 2>/dev/null || true
+    echo "OFF" > "${STATE_FILE}"
+}
+
+function nightmode_off() {
+    nightmode_off_silent
+    notify-send -i weather-clear "NexoOS Tryb Nocny" "Filtr światła niebieskiego WYŁĄCZONY.\nPrzywrócono naturalną temperaturę barw (6500K)."
+}
+
+function nightmode_toggle() {
+    if is_running; then
+        nightmode_off
+    else
+        nightmode_on
+    fi
+}
+
+function nightmode_set_temp() {
+    local target="$1"
+    echo "${target}" > "${TEMP_FILE}"
+    if is_running; then
+        nightmode_on
+    fi
+}
+
+function nightmode_auto_daemon() {
+    echo "AUTO" > "${STATE_FILE}"
+    notify-send -i weather-clear-night "NexoOS Tryb Nocny" "Harmonogram automatyczny AKTYWNY.\nEkran ociepla się od 20:00 do 06:30."
+
+    while true; do
+        current_state=$(cat "${STATE_FILE}" 2>/dev/null || echo "AUTO")
+        if [[ "${current_state}" != "AUTO" ]]; then
+            break
+        fi
+
+        hour=$(date +%H | sed 's/^0//')
+        if (( hour >= 20 || hour < 7 )); then
+            if ! is_running; then
+                nightmode_on
+            fi
+        else
+            if is_running; then
+                nightmode_off_silent
+            fi
+        fi
+        sleep 60
+    done
+}
+
+function show_gui() {
+    local choice
+    local current_status="WYŁĄCZONY"
+    if is_running; then
+        current_status="WŁĄCZONY ($(get_saved_temp)K)"
+    fi
+
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Tryb Nocny & Ochrona Oczu" \
+        --text="Stan aktualny: <b>${current_status}</b>\nWybierz działanie filtru światła niebieskiego:" \
+        --column="Wybierz" --column="Akcja" --column="Szczegóły" \
+        TRUE "Przełącz (Włącz / Wyłącz)" "Szybkie przełączenie filtru (Skrót: Win+Alt+N)" \
+        FALSE "Włącz ciepłe barwy (3800K)" "Rekomendowane do pracy wieczornej i gamingu" \
+        FALSE "Włącz bardzo ciepłe barwy (3000K)" "Maksymalna ochrona oczu w ciemnym pokoju" \
+        FALSE "Włącz tryb automatyczny (Harmonogram)" "Automatycznie po zachodzie słońca (20:00 - 06:30)" \
+        FALSE "Wyłącz filtr (Standardowe 6500K)" "Pełne odwzorowanie kolorów dla grafików" \
+        --width=620 --height=280) || exit 0
+
+    case "${choice}" in
+        *"Przełącz"*)
+            nightmode_toggle
+            ;;
+        *"3800K"*)
+            nightmode_set_temp 3800
+            nightmode_on
+            ;;
+        *"3000K"*)
+            nightmode_set_temp 3000
+            nightmode_on
+            ;;
+        *"automatyczny"*)
+            pkill -f "nexo-nightmode auto" || true
+            nohup /usr/bin/nexo-nightmode auto >/dev/null 2>&1 &
+            ;;
+        *"Wyłącz"*)
+            nightmode_off
+            ;;
+    esac
+}
+
+case "${1:-gui}" in
+    on)
+        nightmode_on
+        ;;
+    off)
+        nightmode_off
+        ;;
+    toggle)
+        nightmode_toggle
+        ;;
+    auto)
+        nightmode_auto_daemon
+        ;;
+    set)
+        if [[ -n "${2:-}" ]]; then
+            nightmode_set_temp "$2"
+        fi
+        ;;
+    status)
+        if is_running; then
+            echo "active"
+        else
+            echo "inactive"
+        fi
+        ;;
+    gui)
+        show_gui
+        ;;
+    *)
+        echo "Użycie: nexo-nightmode {toggle|on|off|auto|set <temp>|status|gui}"
+        exit 1
+        ;;
+esac

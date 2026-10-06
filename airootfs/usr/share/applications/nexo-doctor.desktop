@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=NexoOS Doctor (Self-Healing OS)
+Comment=Diagnostyka stanu dysków, migawki ratunkowe Snapper i przywracanie systemu
+Exec=/usr/bin/nexo-doctor gui
+Icon=system-software-install
+Terminal=false
+Type=Application
+Categories=System;Utility;Archiving;

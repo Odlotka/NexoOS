@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""
+NexoOS Desktop Clock Widget
+Displays dynamic Day, Date and Time matching Screenshots 2 & 4
+Can be toggled on/off in nexo-tweaks or right-click
+"""
+
+import os
+import sys
+import json
+from datetime import datetime
+
+CONFIG_PATH = os.path.expanduser("~/.config/nexo/desktop-clock.json")
+
+def is_enabled():
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                cfg = json.load(f)
+                return cfg.get("enabled", True)
+        except Exception:
+            return True
+    return True
+
+if not is_enabled():
+    sys.exit(0)
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    from gi.repository import Gtk, GLib, Gdk
+
+    class DesktopClock(Gtk.Window):
+        def __init__(self):
+            super().__init__(type=Gtk.WindowType.TOPLEVEL)
+            self.set_title("NexoOS Desktop Clock")
+            self.set_decorated(False)
+            self.set_resizable(False)
+            self.set_skip_taskbar_hint(True)
+            self.set_skip_pager_hint(True)
+            self.set_keep_below(True)
+            self.set_app_paintable(True)
+
+            screen = self.get_screen()
+            visual = screen.get_rgba_visual()
+            if visual and screen.is_composited():
+                self.set_visual(visual)
+
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_halign(Gtk.Align.CENTER)
+            box.set_valign(Gtk.Align.CENTER)
+
+            self.lbl_day = Gtk.Label()
+            self.lbl_date = Gtk.Label()
+            self.lbl_time = Gtk.Label()
+
+            box.pack_start(self.lbl_day, False, False, 0)
+            box.pack_start(self.lbl_date, False, False, 0)
+            box.pack_start(self.lbl_time, False, False, 0)
+            self.add(box)
+
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_data(b"""
+                window { background-color: rgba(0, 0, 0, 0); }
+                label.day {
+                    font-family: 'JetBrainsMono Nerd Font', 'Inter', monospace;
+                    font-size: 40px;
+                    font-weight: 800;
+                    letter-spacing: 14px;
+                    color: rgba(240, 244, 248, 0.92);
+                }
+                label.date {
+                    font-family: 'JetBrainsMono Nerd Font', monospace;
+                    font-size: 16px;
+                    font-weight: 600;
+                    letter-spacing: 4px;
+                    color: rgba(148, 163, 184, 0.85);
+                }
+                label.time {
+                    font-family: 'JetBrainsMono Nerd Font', monospace;
+                    font-size: 15px;
+                    font-weight: 500;
+                    letter-spacing: 3px;
+                    color: rgba(148, 163, 184, 0.70);
+                }
+            """)
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+            self.lbl_day.get_style_context().add_class("day")
+            self.lbl_date.get_style_context().add_class("date")
+            self.lbl_time.get_style_context().add_class("time")
+
+            self.update_clock()
+            GLib.timeout_add_seconds(1, self.update_clock)
+            self.connect("destroy", Gtk.main_quit)
+
+        def update_clock(self):
+            now = datetime.now()
+            raw_day = now.strftime("%A").upper()
+            day_spaced = " ".join(list(raw_day))
+            self.lbl_day.set_text(day_spaced)
+            self.lbl_date.set_text(now.strftime("%d %b %Y").upper())
+            self.lbl_time.set_text(f"- {now.strftime('%H:%M')} -")
+            return True
+
+    win = DesktopClock()
+    win.show_all()
+    # Position centrally on screen
+    screen = win.get_screen()
+    w = screen.get_width()
+    h = screen.get_height()
+    win.move(int((w - 500) / 2), int((h - 260) / 2))
+    Gtk.main()
+
+except Exception as e:
+    print(f"Desktop Clock Helper: {e}")

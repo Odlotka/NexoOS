@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Menedżer Dysków Windows (NTFS / BitLocker)
+Comment=Automatyczne wykrywanie i montowanie dysków z grami i plikami Windows
+Exec=/usr/bin/nexo-mount-windows gui
+Icon=drive-harddisk
+Terminal=false
+Type=Application
+Categories=System;Utility;Filesystem;

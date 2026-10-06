@@ -1,0 +1,374 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Comprehensive Control & Customization Center (nexo-tweaks)
+# Full system personalization: Wallpapers, Dock, Blur, Fonts, Gaming Boost & Lockscreen
+# ==============================================================================
+
+set -euo pipefail
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Ustawień i Personalizacji" \
+        --text="Wybierz kategorię konfiguracji systemu:" \
+        --column="Wybierz" --column="Kategoria" --column="Opis modułu" \
+        TRUE "Tapety" "Własna grafika, czarna dziura, wideo 60 FPS" \
+        FALSE "Zegar Pulpitu" "Włącz / Wyłącz dynamiczny zegar na środku pulpitu" \
+        FALSE "Prywatność i Anonimowość" "Losowy adres MAC, IP / Tor, ochrona DNS i Killswitch" \
+        FALSE "Paski i Dok" "Dolny dok ze skrótami aplikacji i centrum kontroli" \
+        FALSE "Wydajność i Gaming" "Ultra Boost, Direct Scanout, planista BORE i CPU Governor" \
+        FALSE "Ekran Blokady" "Dostosowanie ekranu podglądu (Glance), zegara i awatara" \
+        FALSE "Rozmycie i Wygląd" "Siła rozmycia Dual-Kawase Blur, zaokrąglenia i motyw okien" \
+        FALSE "Czcionki" "Globalna zmiana typografii systemu (GTK, Qt, terminal)" \
+        FALSE "Kursor" "Rozmiar i styl wskaźnika myszy (HiDPI 24px - 48px)" \
+        FALSE "Wine & Gry" "Zarządzanie aplikacjami Windows, czyszczenie shaderów DXVK" \
+        FALSE "Gaming: Powtórki (ShadowPlay)" "Sprzętowy bufor powtórek Ultra FPS (144/240/360 FPS), jakość, czas" \
+        FALSE "Podświetlenie RGB (OpenRGB)" "Sterowanie diodami LED komputera, tryb Stealth, profile barwne" \
+        FALSE "Menedżer Autostartu" "Wybór aplikacji uruchamianych wraz ze startem systemu" \
+        FALSE "Dyski Windows (NTFS / BitLocker)" "Automatyczne wykrywanie i montowanie dysków z grami" \
+        FALSE "Połączenie z Telefonem" "KDE Connect: synchronizacja schowka, plików i powiadomień" \
+        FALSE "Tryb Nocny (Ochrona Oczu)" "Ocieplanie barw po zachodzie słońca, filtr światła niebieskiego" \
+        FALSE "Ratowanie Systemu (Self-Healing)" "Kopie zapasowe Snapper, punkty przywracania GRUB, samonaprawa" \
+        FALSE "Bezpieczny Schowek & Anti-Snoop" "Szyfrowany Sejf AES-256, ochrona schowka, blokada podsłuchu" \
+        FALSE "Narzędzia: OCR & Pobieracz Wideo" "Kopiowanie tekstu z ekranu (Win+Shift+T), pobieranie z YouTube" \
+        FALSE "Nexo Sentinel AI (Antywirus)" "Ochrona w locie, heurystyka, skaner zagrożeń, kwarantanna" \
+        FALSE "Ochrona USB (USB Guard)" "Inspekcja pendrive'ów, blokada BadUSB, opcje montowania noexec" \
+        --width=780 --height=600) || exit 0
+
+    case "${choice}" in
+        "Tapety")                   configure_wallpapers ;;
+        "Zegar Pulpitu")            configure_desktop_clock ;;
+        "Prywatność i Anonimowość") configure_anonymity ;;
+        "Paski i Dok")             configure_bars ;;
+        "Wydajność i Gaming")       configure_performance ;;
+        "Ekran Blokady")            configure_lockscreen ;;
+        "Rozmycie i Wygląd")        configure_blur ;;
+        "Czcionki")                 configure_fonts ;;
+        "Kursor")                   configure_cursors ;;
+        "Wine & Gry")               configure_wine ;;
+        "Gaming: Powtórki (ShadowPlay)")   /usr/bin/nexo-replay gui ;;
+        "Podświetlenie RGB (OpenRGB)")      /usr/bin/nexo-rgb gui ;;
+        "Menedżer Autostartu")              /usr/bin/nexo-autostart-manager ;;
+        "Dyski Windows (NTFS / BitLocker)") /usr/bin/nexo-mount-windows gui ;;
+        "Połączenie z Telefonem")           /usr/bin/nexo-phone-connect ;;
+        "Tryb Nocny (Ochrona Oczu)")        configure_nightmode ;;
+        "Ratowanie Systemu (Self-Healing)") configure_selfhealing ;;
+        "Bezpieczny Schowek & Anti-Snoop")  configure_antisnoop ;;
+        "Narzędzia: OCR & Pobieracz Wideo") configure_tools ;;
+        "Nexo Sentinel AI (Antywirus)")     configure_sentinel ;;
+        "Ochrona USB (USB Guard)")          configure_usbguard ;;
+    esac
+}
+
+function configure_desktop_clock() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Zegar na Pulpicie (Wednesday / Data / Godzina)" \
+        --text="Wybierz stan zegara na pulpicie:" \
+        --column="Wybierz" --column="Stan" \
+        TRUE "Włączony (Wyświetlaj aktualny dzień, datę i czas na środku)" \
+        FALSE "Wyłączony (Usuń zegar z pulpitu)" \
+        --width=520 --height=200) || return 0
+
+    mkdir -p ~/.config/nexo
+    case "${opt}" in
+        *"Włączony"*)
+            echo '{"enabled": true}' > ~/.config/nexo/desktop-clock.json
+            pkill -f nexo-desktop-clock || true
+            /usr/bin/nexo-desktop-clock &
+            notify-send "NexoOS" "Zegar na pulpicie został włączony."
+            ;;
+        *"Wyłączony"*)
+            echo '{"enabled": false}' > ~/.config/nexo/desktop-clock.json
+            pkill -f nexo-desktop-clock || true
+            notify-send "NexoOS" "Zegar na pulpicie został wyłączony."
+            ;;
+    esac
+}
+
+function configure_anonymity() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Prywatność, Anonimowość & Tryb Turniejowy" \
+        --text="Zarządzaj poziomem anonimowości i regułami sieciowymi:" \
+        --column="Wybierz" --column="Moduł" --column="Opis działania" \
+        TRUE "Aktywuj Tryb Turniejowy / E-Sport" "Wyłącza Tor/proxy i wymusza stały MAC pod turnieje (Fortnite, Faceit)" \
+        FALSE "Przywróć Maksymalną Anonimowość" "Włącza losowy MAC, Killswitch i szyfrowanie ruchu Tor" \
+        FALSE "Wygeneruj nowy losowy adres MAC" "Zmienia natychmiast identyfikator karty sieciowej Wi-Fi/LAN" \
+        FALSE "Włącz/Wyłącz Trasowanie Tor" "Przełącza przekierowywanie całego ruchu przez węzły cebulowe" \
+        FALSE "Włącz/Wyłącz Killswitch DNS" "Blokuje ruch sieciowy przy próbie wycieku prawdziwego IP" \
+        FALSE "Wyczyść pamięć RAM ze śladów" "Błyskawiczne nadpisywanie nieużywanych buforów pamięci RAM" \
+        --width=720 --height=320) || return 0
+
+    case "${opt}" in
+        *"Tryb Turniejowy"*)
+            sudo /usr/bin/nexo-killswitch off || true
+            sudo systemctl stop tor.service || true
+            # Przywrócenie stałego domyślnego adresu MAC
+            sudo nmcli radio wifi off && sudo nmcli radio wifi on || true
+            notify-send "NexoOS E-Sport" "Tryb Turniejowy AKTYWNY. Czyste połączenie o niskim pingu pod gry (Anti-Cheat Ready)."
+            ;;
+        *"Maksymalną Anonimowość"*)
+            sudo /usr/bin/nexo-cli spoof || true
+            sudo /usr/bin/nexo-killswitch on || true
+            sudo systemctl start tor.service || true
+            notify-send "NexoOS Prywatność" "Pełna anonimowość aktywna (Losowy MAC + Killswitch + Tor)."
+            ;;
+        *"nowy losowy adres MAC"*)
+            sudo /usr/bin/nexo-cli spoof
+            notify-send "NexoOS Anonimowość" "Wygenerowano nowy losowy adres MAC dla kart sieciowych."
+            ;;
+        *"Trasowanie Tor"*)
+            sudo /usr/bin/nexo-cli tor
+            notify-send "NexoOS Tor" "Przełączono transparentne trasowanie przez sieć Tor."
+            ;;
+        *"Killswitch DNS"*)
+            if sudo iptables -L -n | grep -q "DROP"; then
+                sudo /usr/bin/nexo-killswitch off
+                notify-send "NexoOS Killswitch" "Wyłączono blokadę Killswitch."
+            else
+                sudo /usr/bin/nexo-killswitch on
+                notify-send "NexoOS Killswitch" "Aktywowano blokadę wycieków DNS i IP."
+            fi
+            ;;
+        *"Wyczyść pamięć RAM"*)
+            sudo /usr/bin/nexo-cli clean
+            notify-send "NexoOS Bezpieczeństwo" "Pamięć RAM i bufory zostały wyczyszczone ze śladów."
+            ;;
+    esac
+}
+
+function configure_wallpapers() {
+    local mode
+    mode=$(zenity --list --radiolist \
+        --title="Silnik Tapet Pulpitu" \
+        --text="Wybierz tryb tapety:" \
+        --column="Wybierz" --column="Opcja" \
+        TRUE "Domyślna elegancka tapeta (Szare fale 3D z ekranu NexoOS)" \
+        FALSE "Własna tapeta graficzna (.png, .jpg, .webp)" \
+        FALSE "Żywa tapeta wideo MP4/WebM (Sprzętowe dekodowanie 60 FPS)" \
+        FALSE "Żywa tapeta wideo (Tryb oszczędzania energii 30 FPS)" \
+        FALSE "Steam Wallpaper Engine (Wykrywanie warsztatu 431960)" \
+        --width=520 --height=280) || return 0
+
+    case "${mode}" in
+        "Domyślna"*)
+            swww img /usr/share/nexoos/branding/wallpaper.png --transition-type wipe --transition-duration 1.5
+            notify-send "NexoOS" "Zastosowano domyślną tapetę fal 3D."
+            ;;
+        "Własna"*)
+            local img
+            img=$(zenity --file-selection --title="Wybierz plik graficzny tapety" --file-filter="Obrazy | *.png *.jpg *.jpeg *.webp") || return 0
+            swww img "${img}" --transition-type wipe --transition-duration 1.5
+            notify-send "NexoOS" "Tapeta pulpitu zaktualizowana."
+            ;;
+        *"60 FPS"*)
+            local vid
+            vid=$(zenity --file-selection --title="Wybierz plik wideo dla tapety" --file-filter="Pliki wideo | *.mp4 *.webm *.mkv") || return 0
+            pkill -f mpvpaper || true
+            mpvpaper -o "no-audio loop --hwdec=auto" '*' "${vid}" &
+            notify-send "NexoOS" "Uruchomiono animowaną tapetę wideo (60 FPS, HWDEC)."
+            ;;
+        *"30 FPS"*)
+            local vid
+            vid=$(zenity --file-selection --title="Wybierz plik wideo dla tapety" --file-filter="Pliki wideo | *.mp4 *.webm *.mkv") || return 0
+            pkill -f mpvpaper || true
+            mpvpaper -o "no-audio loop --hwdec=auto --fps=30" '*' "${vid}" &
+            notify-send "NexoOS" "Uruchomiono tapetę wideo w trybie 30 FPS."
+            ;;
+        *"Steam"*)
+            if command -v linux-wallpaperengine >/dev/null 2>&1; then
+                linux-wallpaperengine --silent --assets-dir ~/.local/share/Steam/steamapps/workshop/content/431960/ &
+                notify-send "NexoOS" "Załadowano tapetę ze Steam Wallpaper Engine."
+            else
+                zenity --info --text="Ścieżka warsztatu Steam:\n~/.local/share/Steam/steamapps/workshop/content/431960/"
+            fi
+            ;;
+    esac
+}
+
+function configure_bars() {
+    /usr/bin/nexo-dock-position
+}
+
+function configure_performance() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Optymalizacja Wydajności i Gaming" \
+        --column="Wybierz" --column="Tryb" \
+        TRUE "Aktywuj tryb Ultra Gaming Boost (Wymuszenie Direct Scanout, max zegary CPU/GPU)" \
+        FALSE "Włącz nielimitowany Tearing dla gier (Zero input lag w grach e-sportowych)" \
+        FALSE "Wyłącz rozmycie szkła dla słabszych kart zintegrowanych (Oszczędność GPU)" \
+        FALSE "Przywróć standardowy profil zrównoważony" \
+        --width=560 --height=240) || return 0
+
+    case "${opt}" in
+        *"Ultra Gaming"*)
+            nexo-cli boost
+            notify-send "NexoOS Boost" "Włączono maksymalną wydajność i niskie opóźnienia!"
+            ;;
+        *"Tearing"*)
+            hyprctl keyword general:allow_tearing true
+            notify-send "NexoOS" "Odblokowano natychmiastowe renderowanie klatek (Tearing)."
+            ;;
+        *"Wyłącz rozmycie"*)
+            hyprctl keyword decoration:blur:enabled false
+            notify-send "NexoOS" "Wyłączono rozmycie kompozytora (Maksymalna oszczędność GPU)."
+            ;;
+        *"Przywróć"*)
+            hyprctl keyword decoration:blur:enabled true
+            hyprctl keyword decoration:blur:passes 3
+            notify-send "NexoOS" "Przywrócono standardowy profil graficzny."
+            ;;
+    esac
+}
+
+function configure_lockscreen() {
+    local opt
+    opt=$(zenity --list --radiolist \
+        --title="Ustawienia Ekranu Blokady" \
+        --column="Wybierz" --column="Opcja" \
+        TRUE "Zmień tapetę ekranu blokady" \
+        FALSE "Zmień awatar użytkownika na ekranie logowania" \
+        FALSE "Przetestuj ekran blokady natychmiast" \
+        --width=450 --height=220) || return 0
+
+    case "${opt}" in
+        *"tapetę"*)
+            local img
+            img=$(zenity --file-selection --title="Wybierz grafikę dla ekranu blokady") || return 0
+            cp "${img}" ~/.config/hypr/lockscreen_custom.png
+            notify-send "NexoOS" "Zaktualizowano tapetę ekranu blokady."
+            ;;
+        *"awatar"*)
+            local av
+            av=$(zenity --file-selection --title="Wybierz grafikę awatara") || return 0
+            cp "${av}" ~/.config/hypr/avatar_custom.png
+            notify-send "NexoOS" "Zaktualizowano awatar użytkownika."
+            ;;
+        *"Przetestuj"*)
+            nexo-lock &
+            ;;
+    esac
+}
+
+function configure_blur() {
+    local blur
+    blur=$(zenity --scale --title="Regulacja Rozmycia Szkła (Dual-Kawase Blur)" \
+        --text="Ustaw intensywność rozmycia (1 = minimalne, 5 = mocne szkło akrylowe):" \
+        --min-value=1 --max-value=5 --value=3) || return 0
+
+    hyprctl keyword decoration:blur:passes "${blur}" 2>/dev/null || true
+    notify-send "NexoOS" "Zaktualizowano poziom rozmycia szkła na: ${blur}"
+}
+
+function configure_fonts() {
+    local font
+    font=$(zenity --entry --title="Globalna Typografia Systemu" \
+        --text="Podaj nazwę czcionki (np. JetBrainsMono Nerd Font, Noto Sans, Inter):" \
+        --entry-text="JetBrainsMono Nerd Font") || return 0
+
+    gsettings set org.gnome.desktop.interface font-name "${font} 11" || true
+    notify-send "NexoOS" "Zastosowano nową czcionkę: ${font}"
+}
+
+function configure_cursors() {
+    local size
+    size=$(zenity --scale --title="Rozmiar Kursora Myszy" \
+        --text="Wybierz rozmiar kursora (HiDPI 24px - 48px):" \
+        --min-value=24 --max-value=48 --value=28 --step=4) || return 0
+
+    gsettings set org.gnome.desktop.interface cursor-size "${size}" || true
+    hyprctl setcursor "Adwaita" "${size}" 2>/dev/null || true
+    notify-send "NexoOS" "Skalowanie kursora ustawione na: ${size}px"
+}
+
+function configure_wine() {
+    local act
+    act=$(zenity --list --radiolist \
+        --title="Zarządzanie Aplikacjami Windows (Wine & Gry)" \
+        --column="Wybierz" --column="Akcja" \
+        TRUE "Zabij zawieszone aplikacje Windows (wineserver -k)" \
+        FALSE "Wyczyść pamięć podręczną shaderów DXVK i Mesa" \
+        FALSE "Uruchom program w bezpiecznej piaskownicy (Bubblewrap)" \
+        --width=520 --height=220) || return 0
+
+    case "${act}" in
+        *"Zabij"*)
+            nexo-wine-manager kill
+            ;;
+        *"shaderów"*)
+            nexo-wine-manager clearcache
+            ;;
+        *"piaskownicy"*)
+            local exe
+            exe=$(zenity --file-selection --title="Wybierz plik .exe") || return 0
+            nexo-wine-manager sandbox "${exe}"
+            ;;
+    esac
+}
+
+function configure_nightmode() {
+    /usr/bin/nexo-nightmode gui
+}
+
+function configure_selfhealing() {
+    /usr/bin/nexo-doctor gui
+}
+
+function configure_antisnoop() {
+    /usr/bin/nexo-antisnoop gui
+}
+
+function configure_tools() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Narzędzia Codziennego Użytku" \
+        --column="Wybierz" --column="Narzędzie" --column="Opis" \
+        TRUE "Ekranowy OCR (Kopiowanie Tekstu)" "Zaznacz obszar ekranu, by skopiować tekst (Win+Shift+T)" \
+        FALSE "Pobieracz Wideo / Muzyki (yt-dlp)" "Pobieraj z YouTube, TikToka i Twittera w 4K/MP3" \
+        --width=620 --height=220) || return 0
+
+    case "${choice}" in
+        *"OCR"*)        /usr/bin/nexo-ocr ;;
+        *"Pobieracz"*)  /usr/bin/nexo-downloader ;;
+    esac
+}
+
+function configure_sentinel() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="Nexo Sentinel AI - Centrum Antywirusowe" \
+        --text="Zarządzaj autonomiczną ochroną przed wirusami i trojanami:" \
+        --column="Wybierz" --column="Moduł" --column="Opis działania" \
+        TRUE "Przeskanuj plik lub folder teraz" "Głęboka analiza heurystyczna, ocena ryzyka (0-100%)" \
+        FALSE "Włącz / Wyłącz ochronę w locie (In-Flight)" "Przełącz automatyczny skaner pobierania" \
+        FALSE "Otwórz folder Kwarantanny" "Przeglądaj zneutralizowane zagrożenia" \
+        FALSE "Przejrzyj dziennik wykrytych zagrożeń" "Historia przeskanowanych obiektów" \
+        --width=700 --height=270) || return 0
+
+    case "${choice}" in
+        *"Przeskanuj"*)
+            /usr/bin/nexo-sentinel ;;
+        *"ochronę w locie"*)
+            /usr/bin/nexo-sentinel-guard toggle ;;
+        *"Kwarantanny"*)
+            mkdir -p ~/.config/nexo/sentinel/quarantine
+            nautilus ~/.config/nexo/sentinel/quarantine & ;;
+        *"dziennik"*)
+            touch ~/.config/nexo/sentinel/threats.log
+            zenity --text-info --title="Dziennik Zagrożeń Nexo Sentinel" \
+                --filename="${HOME}/.config/nexo/sentinel/threats.log" --width=700 --height=400 ;;
+    esac
+}
+
+function configure_usbguard() {
+    /usr/bin/nexo-usb-guard gui
+}
+
+# Run UI
+if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" ]]; then
+    show_menu
+else
+    echo "NexoOS Tweaks wymaga uruchomionego środowiska graficznego."
+fi

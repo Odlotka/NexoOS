@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Screen OCR Assistant (nexo-ocr)
+# Snip any region of the screen and instantly copy recognized text to clipboard
+# ==============================================================================
+
+set -euo pipefail
+
+TEMP_IMG="/tmp/nexo_ocr_$(date +%s).png"
+
+# Zaznacz obszar ekranu za pomocą myszy
+GEOM=$(slurp 2>/dev/null || true)
+if [[ -z "${GEOM}" ]]; then
+    exit 0
+fi
+
+# Zrób zrzut wskazanego wycinka
+grim -g "${GEOM}" "${TEMP_IMG}"
+
+# Sprawdź dostępność języków w tesseract
+LANG_ARG="eng"
+if tesseract --list-langs 2>/dev/null | grep -q "pol"; then
+    LANG_ARG="pol+eng"
+fi
+
+# Rozpoznaj tekst za pomocą Tesseract OCR
+TEXT=$(tesseract "${TEMP_IMG}" stdout -l "${LANG_ARG}" --oem 1 -c tessedit_create_txt=1 2>/dev/null || true)
+
+# Usuń plik tymczasowy
+rm -f "${TEMP_IMG}"
+
+if [[ -n "${TEXT//[[:space:]]/}" ]]; then
+    echo -n "${TEXT}" | wl-copy
+    command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i complete 2>/dev/null || true
+    
+    # Skrócony podgląd w powiadomieniu
+    SHORT_TEXT=$(echo "${TEXT}" | head -n3)
+    notify-send -i edit-copy "NexoOS OCR - Tekst Skopiowany!" "Skopiowano do schowka:\n\"${SHORT_TEXT}\""
+else
+    notify-send -u low -i dialog-information "NexoOS OCR" "Nie wykryto czytelnego tekstu w zaznaczonym obszarze."
+fi

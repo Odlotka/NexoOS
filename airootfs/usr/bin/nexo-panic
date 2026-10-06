@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Instant Panic Protocol (nexo-panic)
+# Emergency session purge: kills windows, locks vault, drops network & locks screen
+# ==============================================================================
+
+set -euo pipefail
+
+echo "==> [NexoOS] INICJACJA PROTOKOŁU PANIKI (PANIC BUTTON)..."
+
+# 1. Czyszczenie schowka systemowego
+if command -v wl-copy >/dev/null 2>&1; then
+    wl-copy --clear 2>/dev/null || true
+fi
+
+# 2. Ryflowanie i awaryjne odcięcie szyfrowanego sejfu
+if [[ -x "/usr/bin/nexo-vault" ]]; then
+    /usr/bin/nexo-vault panic 2>/dev/null || true
+fi
+
+# 3. Zrzut buforów dyskowych i wyczyszczenie pamięci podręcznej
+sync
+sudo /usr/bin/nexo-cli clean 2>/dev/null || true
+
+# 4. Natychmiastowe odcięcie interfejsów sieciowych (Wi-Fi, LAN, Bluetooth)
+if command -v nmcli >/dev/null 2>&1; then
+    nmcli networking off 2>/dev/null || true
+fi
+
+# 5. Zamknięcie wrażliwych procesów (Przeglądarki, komunikatory, terminale)
+killall -9 firefox chromium brave tor browser 2>/dev/null || true
+killall -9 telegram-desktop discord element-desktop signal-desktop 2>/dev/null || true
+
+# 6. Zablokowanie ekranu
+if [[ -x "/usr/bin/nexo-lock" ]]; then
+    /usr/bin/nexo-lock &
+else
+    hyprctl dispatch exec hyprlock || true
+fi
+
+echo "==> [NexoOS] Protokół paniki zrealizowany."

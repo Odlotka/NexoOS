@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS OpenRGB Control Center (nexo-rgb)
+# Universal hardware RGB lighting profiles without manufacturer bloatware
+# ==============================================================================
+
+set -euo pipefail
+
+function apply_stealth() {
+    openrgb --mode static --color 000000 2>/dev/null || true
+    notify-send -i weather-clear-night "NexoOS RGB" "🖤 Tryb Stealth AKTYWNY. Całe podświetlenie wyłączone."
+}
+
+function apply_cyber() {
+    # Neon Cyan (#00F0FF) pasujący do motywu NexoOS
+    openrgb --mode static --color 00F0FF 2>/dev/null || true
+    notify-send -i preferences-desktop-theme "NexoOS RGB" "🌌 Zastosowano profil Nexo Cyber (Neon Cyan)."
+}
+
+function apply_purple() {
+    openrgb --mode static --color 9D00FF 2>/dev/null || true
+    notify-send -i preferences-desktop-theme "NexoOS RGB" "🟣 Zastosowano profil Nexo Neon Purple."
+}
+
+function apply_rainbow() {
+    openrgb --mode spectrum-cycle 2>/dev/null || openrgb --mode breathing --color 00F0FF 2>/dev/null || true
+    notify-send -i preferences-desktop-theme "NexoOS RGB" "🌈 Zastosowano profil Rainbow Spectrum."
+}
+
+function open_editor() {
+    openrgb &
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Centrum Podświetlenia RGB (OpenRGB)" \
+        --text="Wybierz profil oświetlenia komputera (GPU, RAM, Płyta Główna, Wentylatory):" \
+        --column="Wybierz" --column="Profil" --column="Opis działania" \
+        TRUE "Tryb Stealth (Wyłącz całe RGB)" "Całkowite wygaszenie diod LED (Nocna sesja)" \
+        FALSE "Nexo Cyber Cyan (#00F0FF)" "Oficjalny neonowy błękit systemu NexoOS" \
+        FALSE "Nexo Cyber Purple (#9D00FF)" "Głęboki neonowy fiolet" \
+        FALSE "Płynna Tęcza (Spectrum Cycle)" "Dynamiczna zmiana barw" \
+        FALSE "Otwórz Zaawansowany Edytor OpenRGB" "Konfiguracja każdej strefy i wentylatora z osobna" \
+        --width=680 --height=280) || exit 0
+
+    case "${choice}" in
+        *"Stealth"*)    apply_stealth ;;
+        *"Cyan"*)       apply_cyber ;;
+        *"Purple"*)     apply_purple ;;
+        *"Tęcza"*)      apply_rainbow ;;
+        *"Edytor"*)     open_editor ;;
+    esac
+}
+
+case "${1:-gui}" in
+    stealth|off)    apply_stealth ;;
+    cyber|cyan)     apply_cyber ;;
+    purple)         apply_purple ;;
+    rainbow)        apply_rainbow ;;
+    editor)         open_editor ;;
+    gui)            show_menu ;;
+    *)
+        echo "Użycie: nexo-rgb {stealth|cyber|purple|rainbow|editor|gui}"
+        exit 1
+        ;;
+esac

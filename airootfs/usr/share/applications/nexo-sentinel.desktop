@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Nexo Sentinel AI (Antywirus)
+Comment=Skaner zagrożeń, heurystyka, ocena ryzyka i bezpieczna kwarantanna
+Exec=/usr/bin/nexo-sentinel
+Icon=security-high
+Terminal=false
+Type=Application
+Categories=System;Security;Utility;

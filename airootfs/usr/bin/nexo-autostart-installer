@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Automatically trigger Calamares installer if booted into live ISO media
+
+if [[ -d /run/archiso || -f /run/archiso/bootmnt || -d /run/archiso/cowspace ]]; then
+    sleep 3
+    sudo -E calamares &
+fi

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Two-Stage Lockscreen Trigger (nexo-lock)
+# Launches hyprlock configured with glance screen and spacebar transition
+# ==============================================================================
+
+set -euo pipefail
+
+if command -v hyprlock >/dev/null 2>&1; then
+    exec hyprlock --config ~/.config/hypr/hyprlock.conf
+else
+    # Fallback if in X11 session
+    exec xflock4 || slock
+fi

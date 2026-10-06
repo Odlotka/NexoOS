@@ -1,0 +1,326 @@
+# ==============================================================================
+# NexoOS (x86_64) - Core Package Inventory
+# Categorized, Deduplicated & Production Ready for mkarchiso
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Base Operating System & Multi-Kernel Tiering
+# ------------------------------------------------------------------------------
+base
+base-devel
+linux-zen
+linux-zen-headers
+linux-hardened
+linux-hardened-headers
+linux-lts
+linux-lts-headers
+linux-firmware
+sof-firmware
+mkinitcpio
+mkinitcpio-archiso
+dkms
+
+# ------------------------------------------------------------------------------
+# 2. Bootloaders, EFI & Hardware Diagnostics
+# ------------------------------------------------------------------------------
+grub
+grub-btrfs
+efibootmgr
+dosfstools
+mtools
+syslinux
+plymouth
+memtest86+
+
+# ------------------------------------------------------------------------------
+# 3. Storage, File Systems & Snapshot Engine
+# ------------------------------------------------------------------------------
+btrfs-progs
+snapper
+snap-pac
+cryptsetup
+device-mapper
+lvm2
+e2fsprogs
+xfsprogs
+ntfs-3g
+zram-generator
+parted
+gparted
+
+# ------------------------------------------------------------------------------
+# 4. Hardware Acceleration, GPU Drivers & DRM Subsystems
+# ------------------------------------------------------------------------------
+mesa
+lib32-mesa
+vulkan-icd-loader
+lib32-vulkan-icd-loader
+vulkan-radeon
+lib32-vulkan-radeon
+vulkan-intel
+lib32-vulkan-intel
+vulkan-mesa-layers
+lib32-vulkan-mesa-layers
+intel-media-driver
+libva-intel-driver
+libva-utils
+vdpauinfo
+v4l2loopback-dkms
+v4l-utils
+
+# ------------------------------------------------------------------------------
+# 5. Core Runtimes, C/C++ Multi-Arch & System HAL
+# ------------------------------------------------------------------------------
+glibc
+lib32-glibc
+gcc-libs
+lib32-gcc-libs
+musl
+clang
+llvm
+llvm-libs
+lib32-llvm-libs
+openssl
+lib32-openssl
+gnutls
+lib32-gnutls
+libgcrypt
+libsodium
+libb2
+libusb
+libevdev
+libinput
+
+# ------------------------------------------------------------------------------
+# 6. Wayland, Hyprland & Frosted-Glass Compositor Stack
+# ------------------------------------------------------------------------------
+hyprland
+hyprlock
+hypridle
+waybar
+swaync
+rofi-wayland
+wlogout
+swww
+mpvpaper
+mpv
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+xorg-xwayland
+wl-clipboard
+grim
+slurp
+brightnessctl
+playerctl
+polkit-kde-agent
+
+# ------------------------------------------------------------------------------
+# 7. Fallback X11 Environment & Compositing
+# ------------------------------------------------------------------------------
+xorg-server
+xorg-xinit
+xorg-xrandr
+xorg-xsetroot
+bspwm
+sxhkd
+picom
+polybar
+feh
+lxappearance
+
+# ------------------------------------------------------------------------------
+# 8. High-Performance Audio Engine (PipeWire / WirePlumber)
+# ------------------------------------------------------------------------------
+pipewire
+wireplumber
+pipewire-audio
+pipewire-alsa
+pipewire-pulse
+pipewire-jack
+lib32-pipewire-jack
+gst-plugin-pipewire
+gstreamer
+gst-plugins-base
+gst-plugins-good
+gst-plugins-bad
+gst-plugins-ugly
+gst-libav
+pavucontrol
+
+# ------------------------------------------------------------------------------
+# 9. Networking, Anonymity, Hardening & Killswitch Subsystems
+# ------------------------------------------------------------------------------
+networkmanager
+network-manager-applet
+wireless_tools
+wpa_supplicant
+iwd
+ethtool
+iproute2
+nftables
+iptables-nft
+tor
+torsocks
+obfs4proxy
+usbguard
+mat2
+wireguard-tools
+macchanger
+
+# ------------------------------------------------------------------------------
+# 10. Windows Binary Compatibility (.exe Automation) & Gaming Stack
+# ------------------------------------------------------------------------------
+wine-staging
+winetricks
+wine-gecko
+wine-mono
+vkd3d
+lib32-vkd3d
+gamescope
+gamemode
+lib32-gamemode
+ananicy-cpp
+mangohud
+lib32-mangohud
+bubblewrap
+cabextract
+zenity
+
+# ------------------------------------------------------------------------------
+# 11. Offensive Auditing & Defensive Cyber Security Suite
+# ------------------------------------------------------------------------------
+nmap
+aircrack-ng
+wireshark-qt
+wireshark-cli
+metasploit
+burpsuite
+hashcat
+john
+sqlmap
+gobuster
+ffuf
+hydra
+masscan
+tcpdump
+socat
+bettercap
+ghidra
+radare2
+proxychains-ng
+openbsd-netcat
+
+# ------------------------------------------------------------------------------
+# 12. Developer, Reversing & Container Toolchains
+# ------------------------------------------------------------------------------
+git
+python
+python-pip
+python-virtualenv
+go
+rust
+podman
+distrobox
+strace
+ltrace
+gdb
+binutils
+
+# ------------------------------------------------------------------------------
+# 13. System Utilities, Terminals & Shell Enhancements
+# ------------------------------------------------------------------------------
+zsh
+zsh-syntax-highlighting
+zsh-autosuggestions
+zsh-completions
+fastfetch
+kitty
+alacritty
+bat
+eza
+fzf
+btop
+htop
+ripgrep
+fd
+jq
+tree
+unzip
+p7zip
+rsync
+curl
+wget
+sudo
+
+# ------------------------------------------------------------------------------
+# 14. Typography, Iconography & Multi-Toolkit Theming
+# ------------------------------------------------------------------------------
+freetype2
+cairo
+pango
+harfbuzz
+fontconfig
+ttf-jetbrains-mono-nerd
+ttf-dejavu
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+adw-gtk-theme
+papirus-icon-theme
+kvantum
+qt5-wayland
+qt6-wayland
+nwg-look
+
+# ------------------------------------------------------------------------------
+# 15. Graphical Software Store, Gaming Suite & Daily Desktop Utilities
+# ------------------------------------------------------------------------------
+nautilus
+gvfs
+gvfs-mtp
+firefox
+python-gobject
+pamac-aur
+lutris
+heroic-games-launcher-bin
+protonup-qt
+mangohud
+lib32-mangohud
+blueman
+gnome-calculator
+mousepad
+gnome-disk-utility
+pavucontrol
+gammastep
+wlsunset
+gocryptfs
+smartmontools
+gpu-screen-recorder
+openrgb
+i2c-tools
+sushi
+kdeconnect
+sshfs
+tesseract
+tesseract-data-pol
+tesseract-data-eng
+yt-dlp
+sound-theme-freedesktop
+libcanberra
+clamav
+yara
+inotify-tools
+
+# ------------------------------------------------------------------------------
+# 16. Calamares Graphical System Installer
+# ------------------------------------------------------------------------------
+calamares
+kconfig
+kcoreaddons
+kservice
+solid
+yaml-cpp
+boost-libs
+ckbcomp
+hwinfo
+upower

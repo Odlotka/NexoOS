@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Centrum RGB (OpenRGB)
+Comment=Sterowanie podświetleniem komputera i tryb Stealth bez zbędnego oprogramowania
+Exec=/usr/bin/nexo-rgb gui
+Icon=preferences-desktop-theme
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;

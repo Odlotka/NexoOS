@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Encrypted Vault & Anti-Snoop Storage (nexo-vault)
+# Military-grade AES-256-GCM encrypted file storage with 1-click lock & panic purge
+# ==============================================================================
+
+set -euo pipefail
+
+VAULT_ENC="${HOME}/.nexo_vault_enc"
+VAULT_MOUNT="${HOME}/Sejf"
+
+function is_mounted() {
+    mountpoint -q "${VAULT_MOUNT}" 2>/dev/null
+}
+
+function init_vault() {
+    mkdir -p "${VAULT_ENC}" "${VAULT_MOUNT}"
+    if [[ -f "${VAULT_ENC}/gocryptfs.conf" ]]; then
+        zenity --info --title="NexoOS Sejf" --text="Sejf już istnieje w katalogu: ${VAULT_ENC}"
+        return 0
+    fi
+
+    local pass
+    pass=$(zenity --password --title="Inicjalizacja Zaszyfrowanego Sejfu NexoOS") || return 0
+    if [[ -z "${pass}" ]]; then
+        zenity --error --text="Hasło nie może być puste!"
+        return 1
+    fi
+
+    echo -n "${pass}" | gocryptfs -init -extpass cat "${VAULT_ENC}" >/dev/null 2>&1
+    zenity --info --title="NexoOS Sejf" \
+        --text="✅ <b>Zaszyfrowany Sejf został pomyślnie utworzony!</b>\n\nMożesz teraz odblokować sejf i przenieść do niego prywatne dokumenty, klucze i pliki."
+}
+
+function unlock_vault() {
+    if is_mounted; then
+        notify-send -i security-high "NexoOS Sejf" "Sejf jest już odblokowany. Otwieranie w menedżerze plików..."
+        nautilus "${VAULT_MOUNT}" &
+        return 0
+    fi
+
+    mkdir -p "${VAULT_ENC}" "${VAULT_MOUNT}"
+
+    if [[ ! -f "${VAULT_ENC}/gocryptfs.conf" ]]; then
+        if zenity --question --text="Zaszyfrowany Sejf jeszcze nie istnieje.\nCzy chcesz go teraz utworzyć?"; then
+            init_vault
+        else
+            return 0
+        fi
+    fi
+
+    local pass
+    pass=$(zenity --password --title="Odblokuj Sejf NexoOS (AES-256-GCM)") || return 0
+    if [[ -z "${pass}" ]]; then
+        return 0
+    fi
+
+    if echo -n "${pass}" | gocryptfs -extpass cat "${VAULT_ENC}" "${VAULT_MOUNT}" >/dev/null 2>&1; then
+        notify-send -i security-high "NexoOS Sejf" "🔓 Sejf odblokowany pomyślnie!\nPliki są dostępne w katalogu ~/Sejf."
+        nautilus "${VAULT_MOUNT}" &
+    else
+        zenity --error --title="Błąd" --text="Niepoprawne hasło do Sejfu!"
+    fi
+}
+
+function lock_vault() {
+    if ! is_mounted; then
+        notify-send -i security-low "NexoOS Sejf" "Sejf jest już zablokowany."
+        return 0
+    fi
+
+    # Odmontowanie wolumenu FUSE
+    fusermount -u "${VAULT_MOUNT}" 2>/dev/null || sudo umount -l "${VAULT_MOUNT}" 2>/dev/null || true
+    sync
+
+    notify-send -i security-high "NexoOS Sejf" "🔐 Sejf został zablokowany i zaszyfrowany.\nPamięć buforowa została zrzucona."
+}
+
+function panic_lock() {
+    echo "==> [NexoOS Vault] Panic lock sequence..."
+    # Zabij aplikacje korzystające z ~/Sejf
+    fuser -km "${VAULT_MOUNT}" 2>/dev/null || true
+    fusermount -u "${VAULT_MOUNT}" 2>/dev/null || sudo umount -f "${VAULT_MOUNT}" 2>/dev/null || true
+    sync
+    # Wyczyść schowek
+    command -v wl-copy >/dev/null 2>&1 && wl-copy --clear 2>/dev/null || true
+    notify-send -u critical -i dialog-warning "NexoOS Sejf" "🚨 ALARM: Sejf zablokowany w trybie awaryjnym!\nWszystkie otwarte pliki odcięte, schowek wyczyszczony."
+}
+
+function show_gui() {
+    local status="ZABLOKOWANY 🔒"
+    if is_mounted; then
+        status="ODBLOKOWANY 🔓 (Dostępny w ~/Sejf)"
+    fi
+
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Zaszyfrowany Sejf Plików (Anti-Snoop)" \
+        --text="Status Sejfu: <b>${status}</b>\nWybierz działanie:" \
+        --column="Wybierz" --column="Akcja" --column="Opis" \
+        TRUE "Odblokuj Sejf (Otwórz ~/Sejf)" "Wprowadź hasło i zamontuj zaszyfrowany wolumen" \
+        FALSE "Zablokuj Sejf (Zaszyfruj natychmiast)" "Bezpieczne odmontowanie i odcięcie dostępu" \
+        FALSE "Awaryjne Zamknięcie (Panic Lock)" "Natychmiastowe odcięcie procesów i czyszczenie schowka" \
+        FALSE "Utwórz nowy Sejf / Zmień hasło" "Inicjalizacja nowego sejfu AES-256" \
+        --width=640 --height=260) || exit 0
+
+    case "${choice}" in
+        *"Odblokuj"*)   unlock_vault ;;
+        *"Zablokuj"*)   lock_vault ;;
+        *"Awaryjne"*)   panic_lock ;;
+        *"Utwórz"*)     init_vault ;;
+    esac
+}
+
+case "${1:-gui}" in
+    unlock) unlock_vault ;;
+    lock)   lock_vault ;;
+    panic)  panic_lock ;;
+    init)   init_vault ;;
+    gui)    show_gui ;;
+    *)
+        echo "Użycie: nexo-vault {unlock|lock|panic|init|gui}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Smart Windows .EXE & .MSI Launcher (nexo-exe-launcher)
+# Seamless Windows binary execution, Proton runner, sandbox & desktop shortcut creator
+# ==============================================================================
+
+set -euo pipefail
+
+EXE_FILE="${1:-}"
+
+if [[ -z "${EXE_FILE}" ]]; then
+    EXE_FILE=$(zenity --file-selection --title="Wybierz plik Windows (.exe / .msi)" \
+        --file-filter="Aplikacje Windows | *.exe *.msi *.bat") || exit 0
+fi
+
+if [[ ! -f "${EXE_FILE}" ]]; then
+    zenity --error --text="Plik nie istnieje: ${EXE_FILE}"
+    exit 1
+fi
+
+FILE_NAME=$(basename "${EXE_FILE}")
+APP_NAME="${FILE_NAME%.*}"
+
+function launch_wine() {
+    notify-send -i wine "NexoOS Wine" "Uruchamianie aplikacji Windows:\n${FILE_NAME}..."
+    wine "${EXE_FILE}" &
+}
+
+function launch_sandbox() {
+    notify-send -i security-high "NexoOS Piaskownica" "Uruchamianie w bezpiecznym kontenerze:\n${FILE_NAME}..."
+    /usr/bin/nexo-wine-manager sandbox "${EXE_FILE}"
+}
+
+function create_shortcut() {
+    local desktop_dir="${HOME}/Desktop"
+    local apps_dir="${HOME}/.local/share/applications"
+    mkdir -p "${desktop_dir}" "${apps_dir}"
+
+    local clean_name
+    clean_name=$(zenity --entry --title="Nazwa Aplikacji" \
+        --text="Podaj nazwę dla skrótu w Menu Start:" \
+        --entry-text="${APP_NAME}") || return 0
+
+    local desktop_content="[Desktop Entry]
+Name=${clean_name}
+Comment=Aplikacja Windows zainstalowana w NexoOS
+Exec=/usr/bin/nexo-exe-launcher \"${EXE_FILE}\"
+Icon=wine
+Terminal=false
+Type=Application
+Categories=Game;Utility;
+"
+
+    local desktop_file="${apps_dir}/${APP_NAME}.desktop"
+    echo "${desktop_content}" > "${desktop_file}"
+    chmod +x "${desktop_file}"
+
+    # Opcjonalny skrót na pulpicie
+    if [[ -d "${desktop_dir}" ]]; then
+        cp "${desktop_file}" "${desktop_dir}/"
+        chmod +x "${desktop_dir}/${APP_NAME}.desktop"
+    fi
+
+    notify-send -i application-default-icon "NexoOS" "✅ Utworzono skrót dla '${clean_name}' w Menu Start i na Pulpicie!"
+}
+
+function show_menu() {
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Asystent Plików Windows (.EXE)" \
+        --text="Wykryto plik Windows: <b>${FILE_NAME}</b>\nWybierz sposób uruchomienia:" \
+        --column="Wybierz" --column="Opcja" --column="Opis działania" \
+        TRUE "Uruchom przez Wine / Proton" "Standardowe uruchomienie z pełną akceleracją graficzną" \
+        FALSE "Uruchom w Piaskownicy (Sandbox)" "Izolowane środowisko Bubblewrap (Bezpieczne dla podejrzanych plików)" \
+        FALSE "Utwórz skrót w Menu Start i na Pulpicie" "Dodaje program do listy zainstalowanych aplikacji" \
+        FALSE "Zarządzaj prefiksem Wine / Zabij zawieszone procesy" "Narzędzia diagnostyczne Wine" \
+        --width=700 --height=280) || exit 0
+
+    case "${choice}" in
+        *"Wine / Proton"*)
+            launch_wine
+            ;;
+        *"Piaskownicy"*)
+            launch_sandbox
+            ;;
+        *"skrót"*)
+            create_shortcut
+            launch_wine
+            ;;
+        *"Zarządzaj"*)
+            /usr/bin/nexo-wine-manager kill
+            ;;
+    esac
+}
+
+show_menu

@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS GPU Instant Replay Engine (nexo-replay)
+# Ultra-low latency ShadowPlay-like hardware replay buffer (NVENC / VAAPI / AMF)
+# ==============================================================================
+
+set -euo pipefail
+
+CONFIG_DIR="${HOME}/.config/nexo"
+CONFIG_FILE="${CONFIG_DIR}/replay.conf"
+REPLAY_DIR="${HOME}/Wideo/Replays"
+
+mkdir -p "${CONFIG_DIR}" "${REPLAY_DIR}"
+
+DEFAULT_TIME=60
+DEFAULT_FPS=144
+DEFAULT_AUDIO="default_output"
+
+function load_config() {
+    if [[ -f "${CONFIG_FILE}" ]]; then
+        source "${CONFIG_FILE}"
+    else
+        REPLAY_TIME="${DEFAULT_TIME}"
+        REPLAY_FPS="${DEFAULT_FPS}"
+        REPLAY_AUDIO="${DEFAULT_AUDIO}"
+    fi
+}
+
+function save_config() {
+    cat << EOF > "${CONFIG_FILE}"
+REPLAY_TIME=${REPLAY_TIME}
+REPLAY_FPS=${REPLAY_FPS}
+REPLAY_AUDIO="${REPLAY_AUDIO}"
+EOF
+}
+
+function is_running() {
+    pgrep -x gpu-screen-recorder >/dev/null 2>&1
+}
+
+function start_replay() {
+    if is_running; then
+        notify-send -i media-record "NexoOS Replay" "Bufor powtórek jest już aktywny w tle."
+        return 0
+    fi
+
+    load_config
+
+    echo "==> [NexoOS Replay] Start bufora powtórek (${REPLAY_TIME}s, ${REPLAY_FPS} FPS)..."
+    
+    # Detekcja audio sink
+    local audio_arg=""
+    if [[ "${REPLAY_AUDIO}" != "none" ]]; then
+        audio_arg="-a default_output"
+    fi
+
+    nohup gpu-screen-recorder -w screen -f "${REPLAY_FPS}" -r "${REPLAY_TIME}" -c mp4 -o "${REPLAY_DIR}" ${audio_arg} >/dev/null 2>&1 &
+    sleep 1
+
+    if is_running; then
+        notify-send -i media-record "NexoOS Instant Replay" "🔴 Bufor powtórek AKTYWNY (${REPLAY_TIME}s).\nSkrót Win+Alt+R zapisze ostatnie chwile z gry."
+    else
+        notify-send -u critical -i dialog-error "NexoOS Replay" "Nie udało się uruchomić bufora sprzętowego.\nSprawdź sterowniki GPU (Mesa / Nvidia)."
+    fi
+}
+
+function stop_replay() {
+    if ! is_running; then
+        notify-send -i media-playback-stop "NexoOS Replay" "Bufor powtórek jest wyłączony."
+        return 0
+    fi
+
+    killall -q -SIGINT gpu-screen-recorder || pkill -x gpu-screen-recorder || true
+    notify-send -i media-playback-stop "NexoOS Instant Replay" "⏹️ Bufor powtórek został zatrzymany."
+}
+
+function save_replay() {
+    if ! is_running; then
+        notify-send -u normal -i dialog-warning "NexoOS Replay" "Bufor nie jest uruchomiony!\nUruchamiam bufor powtórek teraz..."
+        start_replay
+        return 0
+    fi
+
+    # gpu-screen-recorder zapisuje bufor po odebraniu sygnału SIGUSR1
+    killall -SIGUSR1 gpu-screen-recorder
+    
+    # Dźwięk potwierdzenia (jeśli dostępny)
+    command -v canberra-gtk-play >/dev/null 2>&1 && canberra-gtk-play -i complete 2>/dev/null || true
+
+    notify-send -i video-x-generic "NexoOS Powtórka Zapisana! 🎮" "Ostatnie chwile z gry zostały zapisane w folderze:\n${REPLAY_DIR}"
+}
+
+function toggle_replay() {
+    if is_running; then
+        stop_replay
+    else
+        start_replay
+    fi
+}
+
+function show_gui() {
+    load_config
+    local status="WYŁĄCZONY ⏹️"
+    if is_running; then
+        status="AKTYWNY 🔴 (Nagrywanie w pamięci RAM/VRAM)"
+    fi
+
+    local choice
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - GPU Instant Replay (ShadowPlay Hub)" \
+        --text="Stan bufora powtórek: <b>${status}</b>\nFolder zapisu: ${REPLAY_DIR}\nSkrót zapisu: <b>Win + Alt + R</b>" \
+        --column="Wybierz" --column="Akcja" --column="Opis" \
+        TRUE "Zapisz powtórkę teraz" "Zrzuca bufor ostatnich sekund do pliku MP4" \
+        FALSE "Przełącz bufor (Start / Stop)" "Włącz lub wyłącz działanie w tle" \
+        FALSE "Ustaw długość powtórki" "Bieżąca długość: ${REPLAY_TIME} sekund (30s, 60s, 120s, 300s)" \
+        FALSE "Ustaw klatkaż nagrywania" "Bieżący klatkaż: ${REPLAY_FPS} FPS (60, 120, 144)" \
+        FALSE "Otwórz folder powtórek" "Otwiera katalog ${REPLAY_DIR} w menedżerze plików" \
+        --width=680 --height=320) || exit 0
+
+    case "${choice}" in
+        *"Zapisz powtórkę"*)
+            save_replay
+            ;;
+        *"Przełącz bufor"*)
+            toggle_replay
+            ;;
+        *"długość"*)
+            local t
+            t=$(zenity --list --radiolist --title="Długość Bufora Powtórek" \
+                --column="Wybierz" --column="Czas" \
+                TRUE "30" FALSE "60" FALSE "120" FALSE "300") || return 0
+            REPLAY_TIME="${t}"
+            save_config
+            if is_running; then stop_replay; start_replay; fi
+            notify-send "NexoOS Replay" "Zaktualizowano czas bufora na ${t}s."
+            ;;
+        *"klatkaż"*)
+            local f
+            f=$(zenity --list --radiolist --title="FPS Bufora Powtórek (Ultra Płynność)" \
+                --column="Wybierz" --column="FPS" \
+                TRUE "144" FALSE "240" FALSE "360" FALSE "120" FALSE "60") || return 0
+            REPLAY_FPS="${f}"
+            save_config
+            if is_running; then stop_replay; start_replay; fi
+            notify-send "NexoOS Replay" "Zaktualizowano klatkaż na ${f} FPS."
+            ;;
+        *"Otwórz folder"*)
+            nautilus "${REPLAY_DIR}" &
+            ;;
+    esac
+}
+
+case "${1:-gui}" in
+    start)  start_replay ;;
+    stop)   stop_replay ;;
+    save)   save_replay ;;
+    toggle) toggle_replay ;;
+    gui)    show_gui ;;
+    status)
+        if is_running; then echo "recording"; else echo "stopped"; fi
+        ;;
+    *)
+        echo "Użycie: nexo-replay {start|stop|save|toggle|gui|status}"
+        exit 1
+        ;;
+esac

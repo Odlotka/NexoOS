@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Ochrona Przed Podsłuchem (Anti-Snoop)
+Comment=Wyciszanie mikrofonu, odłączanie kamery i ochrona schowka
+Exec=/usr/bin/nexo-antisnoop gui
+Icon=security-high
+Terminal=false
+Type=Application
+Categories=Settings;Security;System;

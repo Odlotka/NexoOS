@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# NexoOS Anti-Snoop Clipboard Guard (nexo-clipboard-guard)
+# Protects against clipboard sniffing, auto-wipes sensitive tokens & passwords
+# ==============================================================================
+
+set -euo pipefail
+
+CONFIG_DIR="${HOME}/.config/nexo"
+STATE_FILE="${CONFIG_DIR}/clipboard-guard.state"
+TIMEOUT_FILE="${CONFIG_DIR}/clipboard-guard.timeout"
+DEFAULT_TIMEOUT=45
+
+mkdir -p "${CONFIG_DIR}"
+
+function get_timeout() {
+    if [[ -f "${TIMEOUT_FILE}" ]]; then
+        cat "${TIMEOUT_FILE}"
+    else
+        echo "${DEFAULT_TIMEOUT}"
+    fi
+}
+
+function wipe_clipboard() {
+    if command -v wl-copy >/dev/null 2>&1; then
+        wl-copy --clear 2>/dev/null || true
+    fi
+    if command -v xclip >/dev/null 2>&1; then
+        xclip -selection clipboard /dev/null 2>/dev/null || true
+    fi
+    notify-send -i edit-clear "NexoOS Anti-Snoop" "🛡️ Schowek systemowy został natychmiast wyczyszczony."
+}
+
+function run_daemon() {
+    echo "RUNNING" > "${STATE_FILE}"
+    local last_hash=""
+    local copy_time=0
+
+    while true; do
+        current_state=$(cat "${STATE_FILE}" 2>/dev/null || echo "RUNNING")
+        if [[ "${current_state}" != "RUNNING" ]]; then
+            break
+        fi
+
+        local timeout
+        timeout=$(get_timeout)
+
+        # Pobierz bieżącą zawartość schowka
+        local content
+        content=$(wl-paste -n 2>/dev/null || true)
+
+        if [[ -n "${content}" ]]; then
+            local current_hash
+            current_hash=$(printf "%s" "${content}" | sha256sum | awk '{print $1}')
+
+            if [[ "${current_hash}" != "${last_hash}" ]]; then
+                last_hash="${current_hash}"
+                copy_time=$(date +%s)
+
+                # Wykrywanie wrażliwych danych (Klucze prywatne, tokeny API, hasła)
+                if [[ "${content}" =~ (BEGIN\ [A-Z]+\ PRIVATE\ KEY|AIza[0-9A-Za-z-_]{35}|ghp_[0-9A-Za-z]{36}|xox[baprs]-[0-9A-Za-z]+|password|hasło|secret) ]]; then
+                    notify-send -u critical -i dialog-warning "NexoOS Anti-Snoop" "⚠️ Wykryto skopiowane hasło / klucz prywatny!\nSchowek zostanie zresetowany za 20 sekund."
+                    sleep 20
+                    wipe_clipboard
+                    last_hash=""
+                    continue
+                fi
+            else
+                local now
+                now=$(date +%s)
+                if (( now - copy_time >= timeout )) && (( timeout > 0 )); then
+                    wipe_clipboard
+                    last_hash=""
+                fi
+            fi
+        fi
+
+        sleep 2
+    done
+}
+
+function show_gui() {
+    local choice
+    local current_state="Aktywny"
+    if ! pgrep -f "nexo-clipboard-guard --daemon" >/dev/null 2>&1; then
+        current_state="Nieaktywny"
+    fi
+
+    choice=$(zenity --list --radiolist \
+        --title="NexoOS - Bezpieczny Schowek (Anti-Snoop)" \
+        --text="Stan ochrony schowka: <b>${current_state}</b>\nWybierz działanie:" \
+        --column="Wybierz" --column="Akcja" --column="Opis" \
+        TRUE "Wyczyść schowek natychmiast" "Natychmiastowe usunięcie danych ze schowka (Skrót: Win+Shift+X)" \
+        FALSE "Włącz ochronę schowka w tle" "Automatyczne usuwanie haseł i czyszczenie po 45 sekundach" \
+        FALSE "Ustaw czas automatycznego czyszczenia" "Dostosuj limit czasu życia danych w schowku" \
+        FALSE "Wyłącz ochronę schowka" "Zatrzymaj demona monitorującego" \
+        --width=640 --height=260) || exit 0
+
+    case "${choice}" in
+        *"Wyczyść schowek"*)
+            wipe_clipboard
+            ;;
+        *"Włącz ochronę"*)
+            pkill -f "nexo-clipboard-guard --daemon" || true
+            nohup /usr/bin/nexo-clipboard-guard --daemon >/dev/null 2>&1 &
+            notify-send "NexoOS Anti-Snoop" "Ochrona schowka została uruchomiona w tle."
+            ;;
+        *"Ustaw czas"*)
+            local new_time
+            new_time=$(zenity --entry --title="Czas życia schowka" \
+                --text="Podaj czas w sekundach po którym schowek zostanie wyczyszczony (0 = wyłączone):" \
+                --entry-text="$(get_timeout)") || return 0
+            if [[ -n "${new_time}" ]]; then
+                echo "${new_time}" > "${TIMEOUT_FILE}"
+                notify-send "NexoOS" "Zaktualizowano limit czasu schowka na: ${new_time} sekund."
+            fi
+            ;;
+        *"Wyłącz ochronę"*)
+            echo "STOPPED" > "${STATE_FILE}"
+            pkill -f "nexo-clipboard-guard --daemon" || true
+            notify-send "NexoOS Anti-Snoop" "Ochrona schowka została zatrzymana."
+            ;;
+    esac
+}
+
+case "${1:-gui}" in
+    --wipe|-w|wipe)
+        wipe_clipboard
+        ;;
+    --daemon|-d|daemon)
+        run_daemon
+        ;;
+    gui)
+        show_gui
+        ;;
+    *)
+        echo "Użycie: nexo-clipboard-guard {--wipe|--daemon|gui}"
+        exit 1
+        ;;
+esac

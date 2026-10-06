@@ -1,0 +1,27 @@
+# ==============================================================================
+# /etc/calamares/branding/nexoos/branding.desc
+# ==============================================================================
+
+componentName:  nexoos
+
+strings:
+    productName:         NexoOS
+    shortProductName:    NexoOS
+    version:             2026.1
+    shortVersion:        2026.1
+    versionedName:       NexoOS 2026.1 "Spectre"
+    shortVersionedName:  NexoOS 2026.1
+    bootloaderEntryName: NexoOS
+    productUrl:          https://nexoos.org
+    supportUrl:          https://nexoos.org/support
+    bugTrackerUrl:       https://github.com/nexoos/core/issues
+
+images:
+    productLogo:         "/usr/share/nexoos/branding/logo.png"
+    productIcon:         "/usr/share/nexoos/branding/icon.png"
+    productWelcome:      "/usr/share/nexoos/branding/welcome.png"
+
+style:
+   Sidebar: widget
+   navigation: widget
+   stylesheet: "stylesheet.qss"
